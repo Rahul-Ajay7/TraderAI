@@ -7,7 +7,7 @@ function ModelCard({ title, model = {}, trainUrl }) {
   async function handleTrain() {
     setTraining(true);
     try {
-      await fetch(`http://localhost:8000${trainUrl}`, { method: "POST" });
+      await fetch(`https://traderai-production-f0f5.up.railway.app${trainUrl}`, { method: "POST" });
     } catch {}
     setTimeout(() => setTraining(false), 2000);
   }
