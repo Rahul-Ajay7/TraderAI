@@ -1,0 +1,144 @@
+
+╔══════════════════════════════════════════╗
+║           T R A D E R  A I              ║
+║   Binance · 5 Symbols · 15m/1h          ║
+║   Local ML · No API · Paper Trade       ║
+╚══════════════════════════════════════════╝
+
+[INIT] DB ready
+[INIT] Fetching initial candles (500 per symbol)...
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c0d1d610>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ed9350>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1eccb50>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ec2d50>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1edb4d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee1190>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee2e50>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1eecbd0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1eee890>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee2610>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[INIT] Done. Starting loop every 15 min...
+
+[INIT] API server → http://localhost:8000
+
+[19:47:59] ── CYCLE START ──
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee0510>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2320890>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee1190>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c23206d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2323850>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2329950>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c232b950>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2331890>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c232a090>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2329ed0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+  [BTCUSDT] Collecting data... 0/60 candles
+  [ETHUSDT] Collecting data... 0/60 candles
+  [BNBUSDT] Collecting data... 0/60 candles
+  [SOLUSDT] Collecting data... 0/60 candles
+  [XRPUSDT] Collecting data... 0/60 candles
+
+──────────────────────────────────────────────────
+  Balance: $1000.00 USDT
+  No open positions
+──────────────────────────────────────────────────
+
+[SLEEP] Next cycle in 15 min...
+
+[21:12:14] ── CYCLE START ──
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by NameResolutionError("HTTPSConnection(host='api.binance.com', port=443): Failed to resolve 'api.binance.com' ([Errno 11001] getaddrinfo failed)"))
+  [BTCUSDT] Collecting data... 0/60 candles
+  [ETHUSDT] Collecting data... 0/60 candles
+  [BNBUSDT] Collecting data... 0/60 candles
+  [SOLUSDT] Collecting data... 0/60 candles
+  [XRPUSDT] Collecting data... 0/60 candles
+
+──────────────────────────────────────────────────
+  Balance: $1000.00 USDT
+  No open positions
+──────────────────────────────────────────────────
+
+[SLEEP] Next cycle in 15 min...
+
+[23:33:44] ── CYCLE START ──
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c23332d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c232a290>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1fb8f90>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee2410>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173a9714490>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2323110>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2333450>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee1650>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1eecf10>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1fbab90>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+  [BTCUSDT] Collecting data... 0/60 candles
+  [ETHUSDT] Collecting data... 0/60 candles
+  [BNBUSDT] Collecting data... 0/60 candles
+  [SOLUSDT] Collecting data... 0/60 candles
+  [XRPUSDT] Collecting data... 0/60 candles
+
+──────────────────────────────────────────────────
+  Balance: $1000.00 USDT
+  No open positions
+──────────────────────────────────────────────────
+
+[SLEEP] Next cycle in 15 min...
+
+[23:50:27] ── CYCLE START ──
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2323790>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c044a250>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2328cd0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2330550>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2328050>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c232b110>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1fba690>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2333310>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2330bd0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2321550>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+  [BTCUSDT] Collecting data... 0/60 candles
+  [ETHUSDT] Collecting data... 0/60 candles
+  [BNBUSDT] Collecting data... 0/60 candles
+  [SOLUSDT] Collecting data... 0/60 candles
+  [XRPUSDT] Collecting data... 0/60 candles
+
+──────────────────────────────────────────────────
+  Balance: $1000.00 USDT
+  No open positions
+──────────────────────────────────────────────────
+
+[SLEEP] Next cycle in 15 min...
+
+[00:07:11] ── CYCLE START ──
+[FETCH ERROR] BTCUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1ee3910>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BTCUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2320d90>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c1eee250>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] ETHUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2330090>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c23304d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] BNBUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2328d50>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c233c1d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] SOLUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=SOLUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c23298d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 15m: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=15m&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c23292d0>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+[FETCH ERROR] XRPUSDT 1h: HTTPSConnectionPool(host='api.binance.com', port=443): Max retries exceeded with url: /api/v3/klines?symbol=XRPUSDT&interval=1h&limit=500 (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.binance.com', port=443) at 0x173c2331d10>, 'Connection to api.binance.com timed out. (connect timeout=10)'))
+  [BTCUSDT] Collecting data... 0/60 candles
+  [ETHUSDT] Collecting data... 0/60 candles
+  [BNBUSDT] Collecting data... 0/60 candles
+  [SOLUSDT] Collecting data... 0/60 candles
+  [XRPUSDT] Collecting data... 0/60 candles
+
+──────────────────────────────────────────────────
+  Balance: $1000.00 USDT
+  No open positions
+──────────────────────────────────────────────────
+
+[SLEEP] Next cycle in 15 min...
+
+[00:23:54] ── CYCLE START ──

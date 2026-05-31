@@ -1,0 +1,202 @@
+"""
+TraderAI — Main Scheduler
+Crypto:  runs 24/7  (Binance 15m)
+Indian:  runs 09:15–15:30 IST weekdays (yfinance 15m)
+Nifty/Sensex: sentiment filter for Indian stocks
+
+Usage:
+  python main.py           # start bot + API
+  python main.py status    # data collection progress
+  python main.py train     # train both models
+"""
+import time, sys, os, threading
+from datetime import datetime
+
+sys.path.append(os.path.dirname(__file__))
+
+from db.database          import init_db, load_candles, candle_count
+from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
+from data.fetcher_indian  import (sync_indian, sync_indian_live,
+                                   INDIAN_STOCKS, INDICES, is_market_open,
+                                   get_nifty_trend)
+from indicators.signals   import compute_signal_score
+from model.lstm_crypto    import predict as predict_crypto
+from model.lstm_indian    import predict as predict_indian
+from trader.paper_trader  import (decide, execute_paper,
+                                   portfolio_status, get_state, reset,
+                                   CRYPTO_BALANCE, INDIAN_BALANCE)
+from backend.state        import state
+from backend.api          import app
+
+import uvicorn
+
+INTERVAL_SEC = 15 * 60   # 15 minutes
+
+# ─── Banner ───────────────────────────────────────────────────────────────────
+
+def banner():
+    print("""
+╔══════════════════════════════════════════════╗
+║            T R A D E R  A I  v2             ║
+║  Crypto: BTC/ETH/BNB/SOL/XRP  (24/7)       ║
+║  Indian: 10 NSE + Nifty + Sensex (IST)     ║
+║  Local LSTM · No API cost · Paper Trade     ║
+╚══════════════════════════════════════════════╝
+""")
+
+# ─── Crypto cycle ─────────────────────────────────────────────────────────────
+
+def run_crypto_cycle():
+    sync_crypto_live()
+    prices  = {}
+    signals = {}
+
+    for sym in CRYPTO_SYMBOLS:
+        candles = load_candles(sym, "crypto", limit=200)
+        if len(candles) < 60:
+            print(f"  [CRYPTO] {sym} collecting... {len(candles)}/60")
+            continue
+        sig  = compute_signal_score(candles, nifty_trend="SIDE", market="crypto")
+        lstm = predict_crypto(candles)
+        action, conf = decide(sig, lstm)
+
+        closes = [c[4] for c in candles]
+        chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
+        prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "crypto"}
+        signals[sym] = sig
+
+        lstm_tag = ""
+        if lstm["source"] == "lstm_crypto":
+            lstm_tag = f" | LSTM 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
+        print(f"  [CRYPTO] {sym} price={sig['price']:.2f} score={sig['score']:+d} "
+              f"sig={sig['direction']}{lstm_tag}")
+        execute_paper(sym, "crypto", action, sig["price"], conf,
+                      sig["score"], sig["reasons"], lstm)
+    return prices, signals
+
+# ─── Indian cycle ─────────────────────────────────────────────────────────────
+
+def run_indian_cycle():
+    if not is_market_open():
+        print("  [INDIAN] Market closed — skipping")
+        return {}, {}
+
+    sync_indian_live()
+
+    # Nifty sentiment
+    nifty_candles = load_candles("^NSEI", "index", limit=10)
+    nifty_trend   = get_nifty_trend(nifty_candles)
+    print(f"  [NIFTY] trend={nifty_trend}")
+
+    prices  = {}
+    signals = {}
+
+    for sym in INDIAN_STOCKS:
+        candles = load_candles(sym, "indian", limit=200)
+        if len(candles) < 60:
+            print(f"  [INDIAN] {sym} collecting... {len(candles)}/60")
+            continue
+        sig  = compute_signal_score(candles, nifty_trend=nifty_trend, market="indian")
+        lstm = predict_indian(candles)
+        action, conf = decide(sig, lstm)
+
+        closes = [c[4] for c in candles]
+        chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
+        prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "indian"}
+        signals[sym] = sig
+
+        lstm_tag = ""
+        if lstm["source"] == "lstm_indian":
+            lstm_tag = f" | LSTM 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
+        print(f"  [INDIAN] {sym} price=₹{sig['price']:.2f} score={sig['score']:+d} "
+              f"sig={sig['direction']}{lstm_tag}")
+        execute_paper(sym, "indian", action, sig["price"], conf,
+                      sig["score"], sig["reasons"], lstm)
+    return prices, signals
+
+# ─── Main cycle ───────────────────────────────────────────────────────────────
+
+def run_cycle():
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"\n[{now}] ── CYCLE START ──")
+
+    c_prices, c_signals = run_crypto_cycle()
+    i_prices, i_signals = run_indian_cycle()
+
+    all_prices  = {**c_prices, **i_prices}
+    all_signals = {**c_signals, **i_signals}
+
+    # Push to state for API/WebSocket
+    state["prices"]      = all_prices
+    state["signals"]     = all_signals
+    state["portfolio"]   = get_state()
+    state["market_open"] = is_market_open()
+    state["last_update"] = datetime.now().isoformat()
+
+    portfolio_status()
+
+# ─── Status ───────────────────────────────────────────────────────────────────
+
+def show_status():
+    print("\n── Crypto Data ──")
+    for sym in CRYPTO_SYMBOLS:
+        n = candle_count(sym, "crypto")
+        bar = "█" * min(n//25, 20) + "░" * max(0, 20-n//25)
+        print(f"  {sym:12s} [{bar}] {n:4d}/500")
+
+    print("\n── Indian Data ──")
+    for sym in INDIAN_STOCKS + INDICES:
+        m = "index" if sym in INDICES else "indian"
+        n = candle_count(sym, m)
+        bar = "█" * min(n//15, 20) + "░" * max(0, 20-n//15)
+        print(f"  {sym:15s} [{bar}] {n:4d}/300")
+
+    c_rdy = os.path.exists("model/lstm_crypto.pt")
+    i_rdy = os.path.exists("model/lstm_indian.pt")
+    print(f"\n  lstm_crypto.pt : {'✓ READY' if c_rdy else '✗ not trained'}")
+    print(f"  lstm_indian.pt : {'✓ READY' if i_rdy else '✗ not trained'}")
+    print(f"\n  Train crypto: python model/lstm_crypto.py train")
+    print(f"  Train indian: python model/lstm_indian.py train\n")
+
+# ─── Entry point ──────────────────────────────────────────────────────────────
+
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "status":
+            show_status(); return
+        if sys.argv[1] == "train":
+            from model.lstm_crypto import train as tc
+            from model.lstm_indian import train as ti
+            print("[TRAIN] Crypto model..."); tc()
+            print("[TRAIN] Indian model..."); ti()
+            return
+
+    banner()
+    init_db()
+    print("[INIT] DB ready")
+
+    print("[INIT] Syncing crypto (500 candles)...")
+    sync_crypto(verbose=True)
+
+    print("[INIT] Syncing Indian stocks (60d × 15m)...")
+    sync_indian(verbose=True)
+
+    # Start FastAPI in background
+    def _api():
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    threading.Thread(target=_api, daemon=True).start()
+    print("[INIT] API → http://localhost:8000\n")
+
+    while True:
+        try:
+            run_cycle()
+        except KeyboardInterrupt:
+            print("\n[STOP] Bot stopped.")
+            break
+        except Exception as e:
+            print(f"[ERROR] {e}")
+        print("[SLEEP] Next cycle in 15 min...")
+        time.sleep(INTERVAL_SEC)
+
+if __name__ == "__main__":
+    main()
