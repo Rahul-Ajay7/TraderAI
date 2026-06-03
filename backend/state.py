@@ -12,8 +12,11 @@ state = {
     },
     "trades":   [],
     "model_status": {
-        "crypto": {"trained": False, "last_trained": None},
-        "indian": {"trained": False, "last_trained": None},
+        "type":    "Kronos-mini",
+        "ready":   False,
+        "source":  "NeoQuasar/Kronos-mini",
+        "context": 2048,
+        "params":  "4.1M",
     },
     "market_open": False,
     "last_update": None,

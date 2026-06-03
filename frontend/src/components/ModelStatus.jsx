@@ -1,69 +1,76 @@
-import { useState } from "react";
-import { Cpu, Play, CheckCircle, XCircle, Loader } from "lucide-react";
-
-function ModelCard({ title, model = {}, trainUrl }) {
-  const [training, setTraining] = useState(false);
-
-  async function handleTrain() {
-    setTraining(true);
-    try {
-      await fetch(`https://traderai-production-f0f5.up.railway.app${trainUrl}`, { method: "POST" });
-    } catch {}
-    setTimeout(() => setTraining(false), 2000);
-  }
-
-  return (
-    <div className="bg-card rounded-xl p-5 border border-gray-800">
-      <div className="flex items-center gap-2 mb-4">
-        <Cpu size={17} className="text-primary"/>
-        <span className="font-semibold text-sm">{title}</span>
-      </div>
-
-      <div className="flex items-center gap-2 mb-3">
-        {model.trained ? (
-          <><CheckCircle size={16} className="text-green-400"/><span className="text-green-400 text-sm font-medium">Trained ✓</span></>
-        ) : (
-          <><XCircle size={16} className="text-yellow-400"/><span className="text-yellow-400 text-sm font-medium">Not trained</span></>
-        )}
-      </div>
-
-      {model.last_trained && (
-        <div className="text-xs text-muted mb-4">Last: {model.last_trained}</div>
-      )}
-
-      <button onClick={handleTrain} disabled={training}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
-          ${training ? "bg-primary/40 text-white/40 cursor-not-allowed" : "bg-primary text-black hover:bg-primary-dark"}`}>
-        {training ? <Loader size={14} className="animate-spin"/> : <Play size={14}/>}
-        {training ? "Training..." : "Train Now"}
-      </button>
-    </div>
-  );
-}
+import { Cpu, CheckCircle, XCircle, Zap } from "lucide-react";
 
 export default function ModelStatus({ model = {} }) {
+  const ready   = model.ready ?? false;
+  const type    = model.type  ?? "Kronos-mini";
+  const params  = model.params ?? "4.1M";
+  const context = model.context ?? 2048;
+  const source  = model.source ?? "NeoQuasar/Kronos-mini";
+
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-5">LSTM Models</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <ModelCard
-          title="Crypto Model (BTC/ETH/BNB/SOL/XRP)"
-          model={model.crypto || {}}
-          trainUrl="/api/train/crypto"
-        />
-        <ModelCard
-          title="Indian Model (NSE + Nifty + Sensex)"
-          model={model.indian || {}}
-          trainUrl="/api/train/indian"
-        />
+      <h2 className="text-xl font-semibold mb-5">AI Model</h2>
+
+      <div className="bg-card rounded-xl p-6 border border-gray-800 mb-4">
+        <div className="flex items-center gap-3 mb-5">
+          <Cpu size={22} className="text-primary"/>
+          <div>
+            <div className="font-bold text-lg">{type}</div>
+            <div className="text-xs text-muted">{source}</div>
+          </div>
+          <div className="ml-auto">
+            {ready ? (
+              <span className="flex items-center gap-1.5 text-green-400 text-sm font-medium">
+                <CheckCircle size={16}/>Live
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-yellow-400 text-sm font-medium">
+                <XCircle size={16}/>Loading...
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            ["Parameters", params],
+            ["Context Window", `${context} candles`],
+            ["Trained On", "45 exchanges"],
+          ].map(([label, val]) => (
+            <div key={label} className="bg-dark rounded-lg p-3">
+              <div className="text-xs text-muted mb-1">{label}</div>
+              <div className="font-semibold text-sm">{val}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2 text-sm">
+          {[
+            ["Prediction",  "UP / DOWN / SIDE for 15min · 30min · 1hr"],
+            ["Input",       "OHLCV candles (open, high, low, close, volume)"],
+            ["Training",    "None needed — pre-trained foundation model"],
+            ["Works for",   "Crypto + Indian stocks + Indices"],
+            ["Device",      "CPU (no GPU needed)"],
+          ].map(([label, val]) => (
+            <div key={label} className="flex gap-2">
+              <span className="text-muted w-24 shrink-0">{label}</span>
+              <span className="text-white">{val}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="bg-card rounded-xl p-5 border border-gray-800 text-sm text-muted space-y-2">
-        <div className="font-semibold text-white mb-2">How to train manually:</div>
-        <div><code className="text-primary bg-dark px-2 py-0.5 rounded">python model/lstm_crypto.py train</code></div>
-        <div><code className="text-primary bg-dark px-2 py-0.5 rounded">python model/lstm_indian.py train</code></div>
-        <div className="pt-2">Each model predicts: <span className="text-white">UP / DOWN / SIDE</span> for next <span className="text-white">15min · 30min · 1hr</span></div>
-        <div>Minimum data: <span className="text-white">500 candles crypto · 300 candles per Indian stock</span></div>
+      <div className="bg-card rounded-xl p-5 border border-gray-800 text-sm">
+        <div className="flex items-center gap-2 mb-3 font-semibold">
+          <Zap size={15} className="text-primary"/>How it works
+        </div>
+        <div className="space-y-1.5 text-muted text-xs leading-relaxed">
+          <div>1. Takes last 500 × 15m candles as input</div>
+          <div>2. Kronos predicts full OHLCV for next 4 candles (1hr)</div>
+          <div>3. Compares predicted close vs current price</div>
+          <div>4. Combined with signal score (60/40 weight) → BUY/SELL/HOLD</div>
+          <div>5. No retraining needed — model improves with more exchanges added</div>
+        </div>
       </div>
     </div>
   );

@@ -25,13 +25,13 @@ app.add_middleware(
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _model_status():
-    import os
-    base = os.path.dirname(os.path.dirname(__file__))
-    state["model_status"]["crypto"]["trained"] = os.path.exists(
-        os.path.join(base, "model", "lstm_crypto.pt"))
-    state["model_status"]["indian"]["trained"] = os.path.exists(
-        os.path.join(base, "model", "lstm_indian.pt"))
+    from model.kronos_predictor import is_ready
+    state["model_status"]["ready"] = is_ready()
     return state["model_status"]
+
+@app.get("/api/model")
+async def get_model():
+    return _model_status()
 
 # ─── REST endpoints ───────────────────────────────────────────────────────────
 
@@ -59,25 +59,6 @@ async def get_model():
 async def get_market():
     return {"open": state["market_open"], "last_update": state["last_update"]}
 
-@app.post("/api/train/crypto")
-async def train_crypto():
-    def _run():
-        from model.lstm_crypto import train
-        train()
-        state["model_status"]["crypto"]["trained"] = True
-        state["model_status"]["crypto"]["last_trained"] = datetime.now().isoformat()
-    threading.Thread(target=_run, daemon=True).start()
-    return {"status": "crypto_training_started"}
-
-@app.post("/api/train/indian")
-async def train_indian():
-    def _run():
-        from model.lstm_indian import train
-        train()
-        state["model_status"]["indian"]["trained"] = True
-        state["model_status"]["indian"]["last_trained"] = datetime.now().isoformat()
-    threading.Thread(target=_run, daemon=True).start()
-    return {"status": "indian_training_started"}
 
 @app.post("/api/reset")
 async def reset_portfolio():

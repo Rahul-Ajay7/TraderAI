@@ -20,8 +20,7 @@ from data.fetcher_indian  import (sync_indian, sync_indian_live,
                                    INDIAN_STOCKS, INDICES, is_market_open,
                                    get_nifty_trend)
 from indicators.signals   import compute_signal_score
-from model.lstm_crypto    import predict as predict_crypto
-from model.lstm_indian    import predict as predict_indian
+from model.kronos_predictor import predict as kronos_predict, warmup
 from trader.paper_trader  import (decide, execute_paper,
                                    portfolio_status, get_state, reset,
                                    CRYPTO_BALANCE, INDIAN_BALANCE)
@@ -37,10 +36,10 @@ INTERVAL_SEC = 15 * 60   # 15 minutes
 def banner():
     print("""
 ╔══════════════════════════════════════════════╗
-║            T R A D E R  A I  v2             ║
+║            T R A D E R  A I  v3             ║
 ║  Crypto: BTC/ETH/BNB/SOL/XRP  (24/7)       ║
 ║  Indian: 10 NSE + Nifty + Sensex (IST)     ║
-║  Local LSTM · No API cost · Paper Trade     ║
+║  Kronos-mini · No training · Paper Trade    ║
 ╚══════════════════════════════════════════════╝
 """)
 
@@ -57,7 +56,7 @@ def run_crypto_cycle():
             print(f"  [CRYPTO] {sym} collecting... {len(candles)}/60")
             continue
         sig  = compute_signal_score(candles, nifty_trend="SIDE", market="crypto")
-        lstm = predict_crypto(candles)
+        lstm = kronos_predict(candles)
         action, conf = decide(sig, lstm)
 
         closes = [c[4] for c in candles]
@@ -66,8 +65,8 @@ def run_crypto_cycle():
         signals[sym] = sig
 
         lstm_tag = ""
-        if lstm["source"] == "lstm_crypto":
-            lstm_tag = f" | LSTM 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
+        if lstm["source"] == "kronos":
+            lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [CRYPTO] {sym} price={sig['price']:.2f} score={sig['score']:+d} "
               f"sig={sig['direction']}{lstm_tag}")
         execute_paper(sym, "crypto", action, sig["price"], conf,
@@ -97,7 +96,7 @@ def run_indian_cycle():
             print(f"  [INDIAN] {sym} collecting... {len(candles)}/60")
             continue
         sig  = compute_signal_score(candles, nifty_trend=nifty_trend, market="indian")
-        lstm = predict_indian(candles)
+        lstm = kronos_predict(candles)
         action, conf = decide(sig, lstm)
 
         closes = [c[4] for c in candles]
@@ -106,8 +105,8 @@ def run_indian_cycle():
         signals[sym] = sig
 
         lstm_tag = ""
-        if lstm["source"] == "lstm_indian":
-            lstm_tag = f" | LSTM 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
+        if lstm["source"] == "kronos":
+            lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [INDIAN] {sym} price=₹{sig['price']:.2f} score={sig['score']:+d} "
               f"sig={sig['direction']}{lstm_tag}")
         execute_paper(sym, "indian", action, sig["price"], conf,
@@ -164,12 +163,6 @@ def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "status":
             show_status(); return
-        if sys.argv[1] == "train":
-            from model.lstm_crypto import train as tc
-            from model.lstm_indian import train as ti
-            print("[TRAIN] Crypto model..."); tc()
-            print("[TRAIN] Indian model..."); ti()
-            return
 
     banner()
     init_db()
@@ -180,6 +173,9 @@ def main():
 
     print("[INIT] Syncing Indian stocks (60d × 15m)...")
     sync_indian(verbose=True)
+
+    print("[INIT] Loading Kronos-mini model...")
+    warmup()
 
     # Start FastAPI in background
     def _api():

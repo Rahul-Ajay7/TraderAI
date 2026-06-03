@@ -4,5 +4,10 @@ websockets
 requests
 numpy
 yfinance
-torch
 scikit-learn
+pandas
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.0+cpu
+transformers
+huggingface_hub
+einops
