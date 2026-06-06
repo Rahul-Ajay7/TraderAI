@@ -1,5 +1,17 @@
 import { useState } from "react";
-import { Activity, TrendingUp, TrendingDown, Minus, BarChart4 } from "lucide-react";
+import { Activity, TrendingUp, TrendingDown, Minus, BarChart4, Zap } from "lucide-react";
+
+const PRED_COLOR = {
+  BUY:  "text-green-400 bg-green-400/10",
+  SELL: "text-red-400 bg-red-400/10",
+  HOLD: "text-yellow-400 bg-yellow-400/10",
+};
+
+const PRED_ICON = {
+  BUY:  <TrendingUp size={13}/>,
+  SELL: <TrendingDown size={13}/>,
+  HOLD: <Minus size={13}/>,
+};
 
 export default function SignalPanel({ signals = {}, prices = {} }) {
   const symbols = Object.keys(signals);
@@ -21,6 +33,15 @@ export default function SignalPanel({ signals = {}, prices = {} }) {
     ? rsi < 30 ? "text-green-400" : rsi > 70 ? "text-red-400" : "text-yellow-400"
     : "text-white";
 
+  // Kronos predictions
+  const p15  = sig.pred_15m  || "HOLD";
+  const p30  = sig.pred_30m  || "HOLD";
+  const p1h  = sig.pred_1h   || "HOLD";
+  const conf = sig.pred_conf != null ? `${(sig.pred_conf * 100).toFixed(0)}%` : "--";
+  const src  = sig.pred_source || "fallback";
+  const c15  = sig.pred_close_15m;
+  const c1h  = sig.pred_close_1h;
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
@@ -36,6 +57,7 @@ export default function SignalPanel({ signals = {}, prices = {} }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
         {/* Score */}
         <div className="bg-card rounded-xl p-5 border border-gray-800">
           <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
@@ -97,6 +119,59 @@ export default function SignalPanel({ signals = {}, prices = {} }) {
           </div>
         </div>
 
+        {/* ── Kronos Trend Forecast ── NEW BLOCK ── */}
+        <div className="bg-card rounded-xl p-5 border border-gray-800 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Zap size={17} className="text-primary"/>Kronos AI Trend Forecast
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded
+              ${src === "kronos"
+                ? "text-green-400 bg-green-400/10"
+                : "text-yellow-400 bg-yellow-400/10"}`}>
+              {src === "kronos" ? "KRONOS ACTIVE" : "SIGNAL ONLY"}
+            </span>
+          </div>
+
+          {/* 3 horizon pills */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[["15 min", p15], ["30 min", p30], ["1 hour", p1h]].map(([label, pred]) => (
+              <div key={label} className="bg-dark rounded-lg p-3 text-center border border-gray-800">
+                <div className="text-xs text-muted mb-2">{label}</div>
+                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold
+                  ${PRED_COLOR[pred] || PRED_COLOR.HOLD}`}>
+                  {PRED_ICON[pred] || PRED_ICON.HOLD}
+                  {pred}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* meta row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-muted">Confidence</span>
+              <span className="font-mono font-semibold">{conf}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-muted">Pred. close +15m</span>
+              <span className="font-mono">
+                {c15 != null ? `${isINR?"₹":"$"}${Number(c15).toFixed(2)}` : "--"}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-muted">Pred. close +1h</span>
+              <span className="font-mono">
+                {c1h != null ? `${isINR?"₹":"$"}${Number(c1h).toFixed(2)}` : "--"}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-muted">Model</span>
+              <span className="font-mono text-[10px]">Kronos-mini</span>
+            </div>
+          </div>
+        </div>
+
         {/* S/R */}
         <div className="bg-card rounded-xl p-5 border border-gray-800 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3 text-sm font-semibold">
@@ -120,6 +195,7 @@ export default function SignalPanel({ signals = {}, prices = {} }) {
             <div className="text-muted text-sm">No levels detected</div>
           )}
         </div>
+
       </div>
     </div>
   );

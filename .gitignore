@@ -9,3 +9,4 @@ __pycache__/
 *.db
 model/*.pt
 model/*.json
+model/kronos_src/

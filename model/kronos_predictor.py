@@ -1,26 +1,19 @@
 """
 model/kronos_predictor.py
-
 Kronos-mini foundation model for price prediction.
-Replaces lstm_crypto.py + lstm_indian.py.
 No training needed — pre-trained on 45 global exchanges.
-
-Predicts: UP/DOWN/SIDE for next 15min, 30min, 1hr
-Works for: crypto + indian stocks + indices
+Predicts: BUY/SELL/HOLD for next 15min, 30min, 1hr
 """
 
-import os, sys
+import os, sys, importlib
 import numpy as np
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ── Cache ──────────────────────────────────────────────────────────────────────
 _predictor_cache = None
 _load_error      = None
 
 KRONOS_MODEL     = "NeoQuasar/Kronos-mini"
 KRONOS_TOKENIZER = "NeoQuasar/Kronos-Tokenizer-2k"
 
-# ── Load model (once) ─────────────────────────────────────────────────────────
 
 def _load_kronos():
     global _predictor_cache, _load_error
@@ -30,15 +23,14 @@ def _load_kronos():
         return None
     try:
         print("[KRONOS] Loading Kronos-mini from HuggingFace...")
-        from huggingface_hub import hf_hub_download
         import torch
-
-        # Download Kronos source files from repo
         import subprocess
-        kronos_dir = os.path.join(os.path.dirname(__file__), "kronos_src")
-        if not os.path.exists(kronos_dir):
+
+        kronos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "kronos_src"))
+
+        # Clone if not present
+        if not os.path.isdir(kronos_dir):
             os.makedirs(kronos_dir, exist_ok=True)
-            # Clone only the model files needed
             subprocess.run([
                 "git", "clone", "--depth", "1",
                 "https://github.com/shiyu-coder/Kronos.git",
@@ -46,13 +38,30 @@ def _load_kronos():
             ], check=True, capture_output=True)
             print("[KRONOS] Source downloaded ✓")
 
-        sys.path.insert(0, kronos_dir)
+        # --- KEY FIX: swap sys.path so kronos_src comes first ---
+        # Remove all paths that could expose our local model/ package
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        saved_path   = sys.path[:]
+        sys.path     = [kronos_dir] + [
+            p for p in sys.path
+            if os.path.abspath(p) not in (project_root, os.path.dirname(__file__))
+        ]
+
+        # Force fresh import — 'model' may already be cached pointing to wrong path
+        for mod in list(sys.modules.keys()):
+            if mod == "model" or mod.startswith("model."):
+                del sys.modules[mod]
+
         from model import Kronos, KronosTokenizer, KronosPredictor
+
+        # Restore path
+        sys.path = saved_path
+        # ---------------------------------------------------------
 
         tokenizer = KronosTokenizer.from_pretrained(KRONOS_TOKENIZER)
         model     = Kronos.from_pretrained(KRONOS_MODEL)
-        predictor = KronosPredictor(model, tokenizer,
-                                    device="cpu", max_context=512)
+        predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
+
         _predictor_cache = predictor
         print("[KRONOS] Model ready ✓")
         return predictor
@@ -63,7 +72,6 @@ def _load_kronos():
         print("[KRONOS] Falling back to signal-only mode")
         return None
 
-# ── Convert candles to DataFrame ──────────────────────────────────────────────
 
 def _candles_to_df(candles):
     import pandas as pd
@@ -81,7 +89,6 @@ def _candles_to_df(candles):
     df["amount"] = df["close"] * df["volume"]
     return df
 
-# ── Direction from predicted candles ──────────────────────────────────────────
 
 def _direction(current_price, predicted_close, threshold=0.003):
     change = (predicted_close - current_price) / current_price
@@ -91,20 +98,8 @@ def _direction(current_price, predicted_close, threshold=0.003):
         return "SELL"
     return "HOLD"
 
-# ── Main predict function ──────────────────────────────────────────────────────
 
 def predict(candles, horizon_candles={"15m": 1, "30m": 2, "1h": 4}):
-    """
-    Input:  list of 15m candles (open_time, open, high, low, close, volume)
-    Output: {
-        "15m": BUY/SELL/HOLD,
-        "30m": BUY/SELL/HOLD,
-        "1h":  BUY/SELL/HOLD,
-        "confidence": float,
-        "predicted_close_15m": float,
-        "source": "kronos" or "fallback"
-    }
-    """
     if len(candles) < 60:
         return _fallback()
 
@@ -115,15 +110,14 @@ def predict(candles, horizon_candles={"15m": 1, "30m": 2, "1h": 4}):
     try:
         import pandas as pd
 
-        df = _candles_to_df(candles)
-        lookback  = min(len(df), 500)   # Kronos-mini context = 2048, use 500
-        pred_len  = 4                   # predict 4 candles = 1hr ahead
+        df        = _candles_to_df(candles)
+        lookback  = min(len(df), 500)
+        pred_len  = 4
 
         x_df        = df.tail(lookback)[["open","high","low","close","volume","amount"]].reset_index(drop=True)
         x_timestamp = df.tail(lookback)["timestamps"].reset_index(drop=True)
 
-        # Generate future timestamps (15min intervals)
-        last_ts = x_timestamp.iloc[-1]
+        last_ts     = x_timestamp.iloc[-1]
         y_timestamp = pd.Series([
             last_ts + pd.Timedelta(minutes=15*(i+1))
             for i in range(pred_len)
@@ -136,31 +130,31 @@ def predict(candles, horizon_candles={"15m": 1, "30m": 2, "1h": 4}):
             pred_len    = pred_len,
             T           = 0.8,
             top_p       = 0.9,
-            sample_count= 3,    # average 3 samples for stability
+            sample_count= 3,
         )
 
         current_price = float(df["close"].iloc[-1])
-        p15 = float(pred_df["close"].iloc[0])   # +15min
-        p30 = float(pred_df["close"].iloc[1])   # +30min
-        p1h = float(pred_df["close"].iloc[3])   # +1hr
+        p15 = float(pred_df["close"].iloc[0])
+        p30 = float(pred_df["close"].iloc[1])
+        p1h = float(pred_df["close"].iloc[3])
 
-        # confidence = how strong the predicted move is
-        move_pct = abs(p1h - current_price) / current_price
-        confidence = round(min(move_pct / 0.02, 1.0), 2)  # 2% move = full conf
+        move_pct   = abs(p1h - current_price) / current_price
+        confidence = round(min(move_pct / 0.02, 1.0), 2)
 
         return {
-            "15m":                _direction(current_price, p15),
-            "30m":                _direction(current_price, p30),
-            "1h":                 _direction(current_price, p1h),
-            "confidence":         confidence,
+            "15m":               _direction(current_price, p15),
+            "30m":               _direction(current_price, p30),
+            "1h":                _direction(current_price, p1h),
+            "confidence":        confidence,
             "predicted_close_15m": round(p15, 4),
             "predicted_close_1h":  round(p1h, 4),
-            "source":             "kronos"
+            "source":            "kronos"
         }
 
     except Exception as e:
         print(f"[KRONOS] Prediction error: {e}")
         return _fallback()
+
 
 def _fallback():
     return {
@@ -171,11 +165,10 @@ def _fallback():
         "source": "fallback"
     }
 
-# ── Status check ──────────────────────────────────────────────────────────────
 
 def is_ready():
     return _predictor_cache is not None
 
+
 def warmup():
-    """Call once at startup to pre-load model"""
     _load_kronos()

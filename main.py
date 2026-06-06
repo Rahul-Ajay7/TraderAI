@@ -62,6 +62,13 @@ def run_crypto_cycle():
         closes = [c[4] for c in candles]
         chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
         prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "crypto"}
+        sig["pred_15m"] = lstm.get("15m", "HOLD")
+        sig["pred_30m"] = lstm.get("30m", "HOLD")
+        sig["pred_1h"]  = lstm.get("1h",  "HOLD")
+        sig["pred_conf"] = lstm.get("confidence", 0.0)
+        sig["pred_close_15m"] = lstm.get("predicted_close_15m")
+        sig["pred_close_1h"]  = lstm.get("predicted_close_1h")
+        sig["pred_source"] = lstm.get("source", "fallback")
         signals[sym] = sig
 
         lstm_tag = ""
@@ -102,6 +109,13 @@ def run_indian_cycle():
         closes = [c[4] for c in candles]
         chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
         prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "indian"}
+        sig["pred_15m"] = lstm.get("15m", "HOLD")
+        sig["pred_30m"] = lstm.get("30m", "HOLD")
+        sig["pred_1h"]  = lstm.get("1h",  "HOLD")
+        sig["pred_conf"] = lstm.get("confidence", 0.0)
+        sig["pred_close_15m"] = lstm.get("predicted_close_15m")
+        sig["pred_close_1h"]  = lstm.get("predicted_close_1h")
+        sig["pred_source"] = lstm.get("source", "fallback")
         signals[sym] = sig
 
         lstm_tag = ""

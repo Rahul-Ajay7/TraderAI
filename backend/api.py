@@ -25,13 +25,12 @@ app.add_middleware(
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _model_status():
-    from model.kronos_predictor import is_ready
-    state["model_status"]["ready"] = is_ready()
+    try:
+        from model.kronos_predictor import is_ready
+        state["model_status"]["ready"] = is_ready()
+    except Exception:
+        state["model_status"]["ready"] = False
     return state["model_status"]
-
-@app.get("/api/model")
-async def get_model():
-    return _model_status()
 
 # ─── REST endpoints ───────────────────────────────────────────────────────────
 
@@ -58,7 +57,6 @@ async def get_model():
 @app.get("/api/market")
 async def get_market():
     return {"open": state["market_open"], "last_update": state["last_update"]}
-
 
 @app.post("/api/reset")
 async def reset_portfolio():
