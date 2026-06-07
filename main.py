@@ -9,10 +9,11 @@ Usage:
   python main.py status    # data collection progress
   python main.py train     # train both models
 """
-import time, sys, os, threading
-from datetime import datetime
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-sys.path.append(os.path.dirname(__file__))
+import time, threading
+from datetime import datetime
 
 from db.database          import init_db, load_candles, candle_count
 from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
