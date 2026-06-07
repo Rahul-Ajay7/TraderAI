@@ -1,7 +1,7 @@
 """
 indicators/signals.py
-All technical indicators — 15m candles only.
-Nifty/Sensex trend used as sentiment filter for Indian stocks.
+IMPROVED: Added ADX (trend strength), candlestick pattern detection,
+divergence check, and smarter S/R scoring.
 """
 import numpy as np
 
@@ -10,6 +10,7 @@ import numpy as np
 def _closes(c): return np.array([x[4] for x in c], dtype=float)
 def _highs(c):  return np.array([x[2] for x in c], dtype=float)
 def _lows(c):   return np.array([x[3] for x in c], dtype=float)
+def _opens(c):  return np.array([x[1] for x in c], dtype=float)
 def _vols(c):   return np.array([x[5] for x in c], dtype=float)
 
 # ─── RSI ──────────────────────────────────────────────────────────────────────
@@ -57,7 +58,105 @@ def compute_bb(closes, period=20):
     r   = closes[-period:]
     mid = np.mean(r)
     std = np.std(r)
-    return mid + 2*std, mid, mid - 2*std   # upper, mid, lower
+    return mid + 2*std, mid, mid - 2*std
+
+# ─── ADX (trend strength) — NEW ───────────────────────────────────────────────
+
+def compute_adx(highs, lows, closes, period=14):
+    """ADX > 25 = trending, < 20 = ranging. Returns adx, +DI, -DI"""
+    if len(closes) < period + 2:
+        return 20.0, 0.0, 0.0
+    tr_list, pdm_list, ndm_list = [], [], []
+    for i in range(1, len(closes)):
+        tr  = max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1]))
+        pdm = max(highs[i]-highs[i-1], 0) if highs[i]-highs[i-1] > lows[i-1]-lows[i] else 0
+        ndm = max(lows[i-1]-lows[i], 0)   if lows[i-1]-lows[i] > highs[i]-highs[i-1] else 0
+        tr_list.append(tr); pdm_list.append(pdm); ndm_list.append(ndm)
+    atr  = np.mean(tr_list[-period:]) + 1e-9
+    pdi  = 100 * np.mean(pdm_list[-period:]) / atr
+    ndi  = 100 * np.mean(ndm_list[-period:]) / atr
+    dx   = 100 * abs(pdi - ndi) / (pdi + ndi + 1e-9)
+    # Smooth DX over period
+    adx = np.mean([
+        100 * abs(
+            100*np.mean(pdm_list[-(period+j):-(j) or None]) /
+            (np.mean(tr_list[-(period+j):-(j) or None])+1e-9) -
+            100*np.mean(ndm_list[-(period+j):-(j) or None]) /
+            (np.mean(tr_list[-(period+j):-(j) or None])+1e-9)
+        ) / (
+            100*np.mean(pdm_list[-(period+j):-(j) or None]) /
+            (np.mean(tr_list[-(period+j):-(j) or None])+1e-9) +
+            100*np.mean(ndm_list[-(period+j):-(j) or None]) /
+            (np.mean(tr_list[-(period+j):-(j) or None])+1e-9) + 1e-9
+        )
+        for j in range(min(period, len(tr_list)-period))
+    ]) * 100 if len(tr_list) > period*2 else dx
+    return round(adx, 1), round(pdi, 1), round(ndi, 1)
+
+# ─── Candlestick Patterns — NEW ───────────────────────────────────────────────
+
+def detect_candle_pattern(opens, highs, lows, closes):
+    """Detects last 3 candles for common reversal patterns."""
+    if len(closes) < 3:
+        return None, 0
+    o, h, l, c = opens[-3:], highs[-3:], lows[-3:], closes[-3:]
+    body  = [abs(c[i]-o[i]) for i in range(3)]
+    range_ = [h[i]-l[i]+1e-9 for i in range(3)]
+
+    # Doji — indecision
+    if body[2] / range_[2] < 0.1:
+        return "Doji", 0
+
+    # Hammer — bullish reversal (long lower wick, small body at top)
+    lower_wick = o[2] - l[2] if c[2] > o[2] else c[2] - l[2]
+    upper_wick = h[2] - c[2] if c[2] > o[2] else h[2] - o[2]
+    if lower_wick > body[2]*2 and upper_wick < body[2]*0.5 and c[1] < o[1]:
+        return "Hammer", 2
+
+    # Shooting Star — bearish reversal (long upper wick)
+    if upper_wick > body[2]*2 and lower_wick < body[2]*0.5 and c[1] > o[1]:
+        return "ShootingStar", -2
+
+    # Bullish Engulfing
+    if c[1] < o[1] and c[2] > o[2] and c[2] > o[1] and o[2] < c[1]:
+        return "BullEngulf", 2
+
+    # Bearish Engulfing
+    if c[1] > o[1] and c[2] < o[2] and c[2] < o[1] and o[2] > c[1]:
+        return "BearEngulf", -2
+
+    # Morning Star — 3-candle bullish
+    if c[0] < o[0] and body[1] < body[0]*0.3 and c[2] > o[2] and c[2] > (o[0]+c[0])/2:
+        return "MorningStar", 3
+
+    # Evening Star — 3-candle bearish
+    if c[0] > o[0] and body[1] < body[0]*0.3 and c[2] < o[2] and c[2] < (o[0]+c[0])/2:
+        return "EveningStar", -3
+
+    return None, 0
+
+# ─── RSI Divergence — NEW ─────────────────────────────────────────────────────
+
+def check_rsi_divergence(closes, lookback=20):
+    """
+    Bullish divergence: price makes lower low, RSI makes higher low → +2
+    Bearish divergence: price makes higher high, RSI makes lower high → -2
+    """
+    if len(closes) < lookback + 14:
+        return 0, None
+    recent   = closes[-lookback:]
+    rsi_vals = [compute_rsi(closes[:-(lookback-i) or len(closes)]) for i in range(lookback)]
+
+    price_low_now  = recent[-1] < min(recent[:-1])
+    price_high_now = recent[-1] > max(recent[:-1])
+    rsi_low_now    = rsi_vals[-1] > min(rsi_vals[:-1])   # higher low = bullish
+    rsi_high_now   = rsi_vals[-1] < max(rsi_vals[:-1])   # lower high = bearish
+
+    if price_low_now and rsi_low_now:
+        return 2, "Bullish RSI divergence"
+    if price_high_now and rsi_high_now:
+        return -2, "Bearish RSI divergence"
+    return 0, None
 
 # ─── Support / Resistance ─────────────────────────────────────────────────────
 
@@ -91,8 +190,8 @@ def compute_supertrend(highs, lows, closes, period=10, mult=3.0):
             abs(lows[i]  - closes[i-1]))
         for i in range(1, len(closes))
     ]
-    atr  = np.mean(atrs[-period:])
-    mid  = (highs[-1] + lows[-1]) / 2
+    atr   = np.mean(atrs[-period:])
+    mid   = (highs[-1] + lows[-1]) / 2
     lower = mid - mult * atr
     trend = "UP" if closes[-1] > lower else "DOWN"
     return trend, lower, mid + mult * atr
@@ -113,7 +212,7 @@ def is_volume_spike(vols, threshold=1.5):
     avg = np.mean(vols[-20:-1]) if len(vols) > 20 else np.mean(vols[:-1])
     return vols[-1] > avg * threshold
 
-# ─── VWAP (intraday) ──────────────────────────────────────────────────────────
+# ─── VWAP ─────────────────────────────────────────────────────────────────────
 
 def compute_vwap(candles):
     tp  = np.array([(c[2]+c[3]+c[4])/3 for c in candles])
@@ -123,10 +222,6 @@ def compute_vwap(candles):
 # ─── MAIN SCORER ──────────────────────────────────────────────────────────────
 
 def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
-    """
-    Input:  60+ × 15m candles, optional Nifty trend for Indian stocks
-    Output: dict with score, direction, confidence, reasons, indicators
-    """
     if len(candles_15m) < 60:
         return {
             "score": 0, "direction": "HOLD", "confidence": 0,
@@ -139,6 +234,7 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     c   = _closes(candles_15m)
     h   = _highs(candles_15m)
     l   = _lows(candles_15m)
+    o   = _opens(candles_15m)
     v   = _vols(candles_15m)
     price = c[-1]
 
@@ -146,15 +242,19 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     rsi = compute_rsi(c)
     if rsi < 30:
         score += 2; reasons.append(f"RSI={rsi:.1f} oversold")
+    elif rsi < 40:
+        score += 1; reasons.append(f"RSI={rsi:.1f} approaching oversold")
     elif rsi > 70:
         score -= 2; reasons.append(f"RSI={rsi:.1f} overbought")
+    elif rsi > 60:
+        score -= 1; reasons.append(f"RSI={rsi:.1f} approaching overbought")
 
     # 2. EMA 9/21 crossover
-    ema9      = compute_ema(c, 9)
-    ema21     = compute_ema(c, 21)
-    ema50     = compute_ema(c, 50)
-    ema9_p    = compute_ema(c[:-1], 9)
-    ema21_p   = compute_ema(c[:-1], 21)
+    ema9    = compute_ema(c, 9)
+    ema21   = compute_ema(c, 21)
+    ema50   = compute_ema(c, 50)
+    ema9_p  = compute_ema(c[:-1], 9)
+    ema21_p = compute_ema(c[:-1], 21)
     if ema9 > ema21 and ema9_p <= ema21_p:
         score += 2; reasons.append("Golden cross EMA9/21")
     elif ema9 < ema21 and ema9_p >= ema21_p:
@@ -223,7 +323,30 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
                 score += 1; reasons.append(f"Fib {name} support")
             break
 
-    # 11. Nifty sentiment filter (Indian stocks only)
+    # 11. ADX — trend strength filter (NEW)
+    adx, pdi, ndi = compute_adx(h, l, c)
+    if adx > 25:
+        # Strong trend — amplify existing direction
+        if pdi > ndi:
+            score += 1; reasons.append(f"ADX={adx} strong uptrend")
+        else:
+            score -= 1; reasons.append(f"ADX={adx} strong downtrend")
+    else:
+        reasons.append(f"ADX={adx} ranging market")
+
+    # 12. Candlestick patterns (NEW)
+    pattern, pat_score = detect_candle_pattern(o, h, l, c)
+    if pattern and pat_score != 0:
+        score += pat_score
+        reasons.append(f"Pattern: {pattern}")
+
+    # 13. RSI Divergence (NEW)
+    div_score, div_reason = check_rsi_divergence(c)
+    if div_score != 0 and div_reason:
+        score += div_score
+        reasons.append(div_reason)
+
+    # 14. Nifty sentiment filter (Indian only)
     if market == "indian":
         if nifty_trend == "DOWN":
             score -= 2; reasons.append("Nifty falling — market headwind")
@@ -238,7 +361,7 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     elif score <= -2:   direction = "SELL"
     else:               direction = "HOLD"
 
-    confidence = round(min(abs(score) / 14, 1.0), 2)
+    confidence = round(min(abs(score) / 16, 1.0), 2)  # max score now ~16
 
     return {
         "score":      score,
@@ -253,5 +376,7 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
         "bb_lower":   round(bb_lower, 4),
         "vwap":       round(vwap, 4),
         "supertrend": trend,
+        "adx":        adx,
         "sr_levels":  [round(x, 2) for x in sr[-5:]],
+        "pattern":    pattern,
     }
