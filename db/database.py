@@ -40,7 +40,6 @@ def init_db():
     conn.close()
 
 def save_candles(symbol, market, candles):
-    """candles: list of (open_time, open, high, low, close, volume)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.executemany("""
@@ -61,7 +60,7 @@ def load_candles(symbol, market, limit=200):
     """, (symbol, market, limit))
     rows = c.fetchall()
     conn.close()
-    return list(reversed(rows))  # oldest first
+    return list(reversed(rows))
 
 def save_trade(symbol, market, side, qty, price, score, confidence, preds=None):
     if preds is None:
@@ -103,5 +102,29 @@ def get_all_trades(limit=50):
             "confidence": r[6], "pred_15m": r[7],
             "pred_30m": r[8], "pred_1h": r[9], "time": r[10]
         }
+        for r in rows
+    ]
+
+def get_open_positions():
+    """Returns open positions — BUY trades with no matching SELL."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        SELECT b.symbol, b.market, b.qty, b.price
+        FROM trades b
+        WHERE b.side = 'BUY'
+        AND NOT EXISTS (
+            SELECT 1 FROM trades s
+            WHERE s.symbol = b.symbol
+            AND s.market  = b.market
+            AND s.side    = 'SELL'
+            AND s.id      > b.id
+        )
+        ORDER BY b.id DESC
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"symbol": r[0], "market": r[1], "qty": r[2], "entry": r[3]}
         for r in rows
     ]

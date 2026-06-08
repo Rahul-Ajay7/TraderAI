@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import time, threading
 from datetime import datetime
-
+from trader.paper_trader import reload_positions
 from db.database          import init_db, load_candles, candle_count
 from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
 from data.fetcher_indian  import (sync_indian, sync_indian_live,
@@ -188,7 +188,9 @@ def main():
 
     print("[INIT] Syncing Indian stocks (60d × 15m)...")
     sync_indian(verbose=True)
-
+    
+    reload_positions()
+    print("[INIT] Positions reloaded from DB")
     print("[INIT] Loading Kronos-mini model...")
     warmup()
 
