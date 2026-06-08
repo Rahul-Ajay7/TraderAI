@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+websockets
+requests
+numpy
+yfinance
+scikit-learn
+pandas
