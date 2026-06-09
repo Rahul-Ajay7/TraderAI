@@ -6,3 +6,5 @@ numpy
 yfinance
 scikit-learn
 pandas
+
+psycopg2-binary
