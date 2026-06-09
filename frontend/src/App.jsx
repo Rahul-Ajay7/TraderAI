@@ -23,7 +23,10 @@ export default function App() {
     let ws, timer;
     function connect() {
       setStatus("connecting");
-      ws = new WebSocket("ws://localhost:8000/ws");
+      const wsUrl = window.location.hostname === 'localhost'
+      ? 'ws://localhost:8000/ws'
+      : 'wss://traderai-backend.up.railway.app/ws';
+      const ws = new WebSocket(wsUrl);
       ws.onopen    = () => setStatus("connected");
       ws.onclose   = () => { setStatus("disconnected"); timer = setTimeout(connect, 3000); };
       ws.onerror   = () => ws.close();
