@@ -1,6 +1,6 @@
 """
 TraderAI — Database
-Uses PostgreSQL (Railway/Supabase) if DATABASE_URL is set, else SQLite locally.
+Uses PostgreSQL (Railway) if DATABASE_URL is set, else SQLite locally.
 """
 import os, sqlite3
 
@@ -16,7 +16,6 @@ def _get_conn():
     return sqlite3.connect(path), "sqlite"
 
 def _ph(db):
-    """Placeholder — %s for postgres, ? for sqlite."""
     return "%s" if db == "pg" else "?"
 
 # ── Init ──────────────────────────────────────────────────────────────────────
@@ -24,32 +23,62 @@ def _ph(db):
 def init_db():
     conn, db = _get_conn()
     c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS candles (
-            id        SERIAL PRIMARY KEY,
-            symbol    TEXT    NOT NULL,
-            market    TEXT    NOT NULL,
-            open_time BIGINT  NOT NULL,
-            open      REAL, high REAL, low REAL, close REAL, volume REAL,
-            UNIQUE(symbol, market, open_time)
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS trades (
-            id         SERIAL PRIMARY KEY,
-            symbol     TEXT,
-            market     TEXT,
-            side       TEXT,
-            qty        REAL,
-            price      REAL,
-            score      REAL,
-            confidence REAL,
-            pred_15m   TEXT,
-            pred_30m   TEXT,
-            pred_1h    TEXT,
-            timestamp  TEXT DEFAULT (to_char(now(),'YYYY-MM-DD HH24:MI:SS'))
-        )
-    """)
+
+    if db == "pg":
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS candles (
+                id        SERIAL PRIMARY KEY,
+                symbol    TEXT    NOT NULL,
+                market    TEXT    NOT NULL,
+                open_time BIGINT  NOT NULL,
+                open      REAL, high REAL, low REAL, close REAL, volume REAL,
+                UNIQUE(symbol, market, open_time)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id         SERIAL PRIMARY KEY,
+                symbol     TEXT,
+                market     TEXT,
+                side       TEXT,
+                qty        REAL,
+                price      REAL,
+                score      REAL,
+                confidence REAL,
+                pred_15m   TEXT,
+                pred_30m   TEXT,
+                pred_1h    TEXT,
+                timestamp  TEXT DEFAULT to_char(now(),'YYYY-MM-DD HH24:MI:SS')
+            )
+        """)
+    else:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS candles (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol    TEXT    NOT NULL,
+                market    TEXT    NOT NULL,
+                open_time INTEGER NOT NULL,
+                open      REAL, high REAL, low REAL, close REAL, volume REAL,
+                UNIQUE(symbol, market, open_time)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol     TEXT,
+                market     TEXT,
+                side       TEXT,
+                qty        REAL,
+                price      REAL,
+                score      REAL,
+                confidence REAL,
+                pred_15m   TEXT,
+                pred_30m   TEXT,
+                pred_1h    TEXT,
+                timestamp  TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
     conn.commit()
     conn.close()
     print(f"[DB] Using {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
