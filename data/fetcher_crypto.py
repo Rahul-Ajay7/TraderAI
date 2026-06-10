@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from db.database import save_candles, candle_count
 
 CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
-BASE_URL = "https://api.binance.com/api/v3/klines"
+BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 
 def fetch_crypto_candles(symbol, limit=500):
     try:
@@ -27,7 +27,7 @@ def fetch_crypto_candles(symbol, limit=500):
 
 def get_crypto_price(symbol):
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price",
+        r = requests.get("https://data-api.binance.vision/api/v3/ticker/price",
                          params={"symbol": symbol}, timeout=5)
         return float(r.json()["price"])
     except:
