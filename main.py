@@ -7,14 +7,15 @@ Nifty/Sensex: sentiment filter for Indian stocks
 Usage:
   python main.py           # start bot + API
   python main.py status    # data collection progress
-  python main.py train     # train both models
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+print("[STARTUP] main.py executing...", flush=True)
+
 import time, threading
 from datetime import datetime
-from trader.paper_trader import reload_positions
+
 from db.database          import init_db, load_candles, candle_count
 from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
 from data.fetcher_indian  import (sync_indian, sync_indian_live,
@@ -24,13 +25,14 @@ from indicators.signals   import compute_signal_score
 from model.kronos_predictor import predict as kronos_predict, warmup
 from trader.paper_trader  import (decide, execute_paper,
                                    portfolio_status, get_state, reset,
+                                   reload_positions,
                                    CRYPTO_BALANCE, INDIAN_BALANCE)
 from backend.state        import state
 from backend.api          import app
 
 import uvicorn
 
-INTERVAL_SEC = 15 * 60   # 15 minutes
+INTERVAL_SEC = 15 * 60
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +44,7 @@ def banner():
 ║  Indian: 10 NSE + Nifty + Sensex (IST)     ║
 ║  Kronos-mini · No training · Paper Trade    ║
 ╚══════════════════════════════════════════════╝
-""")
+""", flush=True)
 
 # ─── Crypto cycle ─────────────────────────────────────────────────────────────
 
@@ -54,7 +56,7 @@ def run_crypto_cycle():
     for sym in CRYPTO_SYMBOLS:
         candles = load_candles(sym, "crypto", limit=200)
         if len(candles) < 60:
-            print(f"  [CRYPTO] {sym} collecting... {len(candles)}/60")
+            print(f"  [CRYPTO] {sym} collecting... {len(candles)}/60", flush=True)
             continue
         sig  = compute_signal_score(candles, nifty_trend="SIDE", market="crypto")
         lstm = kronos_predict(candles)
@@ -63,20 +65,20 @@ def run_crypto_cycle():
         closes = [c[4] for c in candles]
         chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
         prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "crypto"}
-        sig["pred_15m"] = lstm.get("15m", "HOLD")
-        sig["pred_30m"] = lstm.get("30m", "HOLD")
-        sig["pred_1h"]  = lstm.get("1h",  "HOLD")
-        sig["pred_conf"] = lstm.get("confidence", 0.0)
+        sig["pred_15m"]       = lstm.get("15m", "HOLD")
+        sig["pred_30m"]       = lstm.get("30m", "HOLD")
+        sig["pred_1h"]        = lstm.get("1h",  "HOLD")
+        sig["pred_conf"]      = lstm.get("confidence", 0.0)
         sig["pred_close_15m"] = lstm.get("predicted_close_15m")
         sig["pred_close_1h"]  = lstm.get("predicted_close_1h")
-        sig["pred_source"] = lstm.get("source", "fallback")
+        sig["pred_source"]    = lstm.get("source", "fallback")
         signals[sym] = sig
 
         lstm_tag = ""
         if lstm["source"] == "kronos":
             lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [CRYPTO] {sym} price={sig['price']:.2f} score={sig['score']:+d} "
-              f"sig={sig['direction']}{lstm_tag}")
+              f"sig={sig['direction']}{lstm_tag}", flush=True)
         execute_paper(sym, "crypto", action, sig["price"], conf,
                       sig["score"], sig["reasons"], lstm)
     return prices, signals
@@ -85,15 +87,14 @@ def run_crypto_cycle():
 
 def run_indian_cycle():
     if not is_market_open():
-        print("  [INDIAN] Market closed — skipping")
+        print("  [INDIAN] Market closed — skipping", flush=True)
         return {}, {}
 
     sync_indian_live()
 
-    # Nifty sentiment
     nifty_candles = load_candles("^NSEI", "index", limit=10)
     nifty_trend   = get_nifty_trend(nifty_candles)
-    print(f"  [NIFTY] trend={nifty_trend}")
+    print(f"  [NIFTY] trend={nifty_trend}", flush=True)
 
     prices  = {}
     signals = {}
@@ -101,7 +102,7 @@ def run_indian_cycle():
     for sym in INDIAN_STOCKS:
         candles = load_candles(sym, "indian", limit=200)
         if len(candles) < 60:
-            print(f"  [INDIAN] {sym} collecting... {len(candles)}/60")
+            print(f"  [INDIAN] {sym} collecting... {len(candles)}/60", flush=True)
             continue
         sig  = compute_signal_score(candles, nifty_trend=nifty_trend, market="indian")
         lstm = kronos_predict(candles)
@@ -110,20 +111,20 @@ def run_indian_cycle():
         closes = [c[4] for c in candles]
         chg    = (closes[-1]-closes[-2])/closes[-2]*100 if len(closes)>=2 else 0
         prices[sym]  = {"price": sig["price"], "change_pct": round(chg,2), "market": "indian"}
-        sig["pred_15m"] = lstm.get("15m", "HOLD")
-        sig["pred_30m"] = lstm.get("30m", "HOLD")
-        sig["pred_1h"]  = lstm.get("1h",  "HOLD")
-        sig["pred_conf"] = lstm.get("confidence", 0.0)
+        sig["pred_15m"]       = lstm.get("15m", "HOLD")
+        sig["pred_30m"]       = lstm.get("30m", "HOLD")
+        sig["pred_1h"]        = lstm.get("1h",  "HOLD")
+        sig["pred_conf"]      = lstm.get("confidence", 0.0)
         sig["pred_close_15m"] = lstm.get("predicted_close_15m")
         sig["pred_close_1h"]  = lstm.get("predicted_close_1h")
-        sig["pred_source"] = lstm.get("source", "fallback")
+        sig["pred_source"]    = lstm.get("source", "fallback")
         signals[sym] = sig
 
         lstm_tag = ""
         if lstm["source"] == "kronos":
             lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [INDIAN] {sym} price=₹{sig['price']:.2f} score={sig['score']:+d} "
-              f"sig={sig['direction']}{lstm_tag}")
+              f"sig={sig['direction']}{lstm_tag}", flush=True)
         execute_paper(sym, "indian", action, sig["price"], conf,
                       sig["score"], sig["reasons"], lstm)
     return prices, signals
@@ -132,7 +133,7 @@ def run_indian_cycle():
 
 def run_cycle():
     now = datetime.now().strftime("%H:%M:%S")
-    print(f"\n[{now}] ── CYCLE START ──")
+    print(f"\n[{now}] ── CYCLE START ──", flush=True)
 
     c_prices, c_signals = run_crypto_cycle()
     i_prices, i_signals = run_indian_cycle()
@@ -140,7 +141,6 @@ def run_cycle():
     all_prices  = {**c_prices, **i_prices}
     all_signals = {**c_signals, **i_signals}
 
-    # Push to state for API/WebSocket
     state["prices"]      = all_prices
     state["signals"]     = all_signals
     state["portfolio"]   = get_state()
@@ -165,13 +165,6 @@ def show_status():
         bar = "█" * min(n//15, 20) + "░" * max(0, 20-n//15)
         print(f"  {sym:15s} [{bar}] {n:4d}/300")
 
-    c_rdy = os.path.exists("model/lstm_crypto.pt")
-    i_rdy = os.path.exists("model/lstm_indian.pt")
-    print(f"\n  lstm_crypto.pt : {'✓ READY' if c_rdy else '✗ not trained'}")
-    print(f"  lstm_indian.pt : {'✓ READY' if i_rdy else '✗ not trained'}")
-    print(f"\n  Train crypto: python model/lstm_crypto.py train")
-    print(f"  Train indian: python model/lstm_indian.py train\n")
-
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 def main():
@@ -180,26 +173,27 @@ def main():
             show_status(); return
 
     banner()
-    init_db()
-    print("[INIT] DB ready")
 
-    print("[INIT] Syncing crypto (500 candles)...")
+    print("[INIT] DB ready", flush=True)
+    init_db()
+
+    print("[INIT] Syncing crypto (500 candles)...", flush=True)
     sync_crypto(verbose=True)
 
-    print("[INIT] Syncing Indian stocks (60d × 15m)...")
+    print("[INIT] Syncing Indian stocks (60d × 15m)...", flush=True)
     sync_indian(verbose=True)
-    
+
     reload_positions()
-    print("[INIT] Positions reloaded from DB")
-    print("[INIT] Loading Kronos-mini model...")
+    print("[INIT] Positions reloaded from DB", flush=True)
+
+    print("[INIT] Loading Kronos-mini model...", flush=True)
     warmup()
 
-    # Start FastAPI in background
     def _api():
         port = int(os.environ.get("PORT", 8000))
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     threading.Thread(target=_api, daemon=True).start()
-    print("[INIT] API → http://localhost:8000\n")
+    print(f"[INIT] API started\n", flush=True)
 
     while True:
         try:
@@ -208,8 +202,10 @@ def main():
             print("\n[STOP] Bot stopped.")
             break
         except Exception as e:
-            print(f"[ERROR] {e}")
-        print("[SLEEP] Next cycle in 15 min...")
+            import traceback
+            print(f"[ERROR] {e}", flush=True)
+            traceback.print_exc()
+        print("[SLEEP] Next cycle in 15 min...", flush=True)
         time.sleep(INTERVAL_SEC)
 
 if __name__ == "__main__":
