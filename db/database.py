@@ -81,21 +81,23 @@ def init_db():
 
     conn.commit()
     conn.close()
-    print(f"[DB] Using {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+    print(f"[DB] Using {'PostgreSQL' if DATABASE_URL else 'SQLite'}", flush=True)
 
 # ── Save candles ──────────────────────────────────────────────────────────────
 
 def save_candles(symbol, market, candles):
+    if not candles:
+        return
     conn, db = _get_conn()
     c = conn.cursor()
     p = _ph(db)
     if db == "pg":
-        for row in candles:
-            c.execute(f"""
-                INSERT INTO candles (symbol, market, open_time, open, high, low, close, volume)
-                VALUES ({p},{p},{p},{p},{p},{p},{p},{p})
-                ON CONFLICT (symbol, market, open_time) DO NOTHING
-            """, (symbol, market, *row))
+        from psycopg2.extras import execute_batch
+        execute_batch(c, f"""
+            INSERT INTO candles (symbol, market, open_time, open, high, low, close, volume)
+            VALUES ({p},{p},{p},{p},{p},{p},{p},{p})
+            ON CONFLICT (symbol, market, open_time) DO NOTHING
+        """, [(symbol, market, *row) for row in candles], page_size=500)
     else:
         c.executemany(f"""
             INSERT OR IGNORE INTO candles
