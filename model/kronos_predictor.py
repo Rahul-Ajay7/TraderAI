@@ -47,15 +47,23 @@ def _load_kronos():
             if os.path.abspath(p) not in (project_root, os.path.dirname(__file__))
         ]
 
-        # Force fresh import — 'model' may already be cached pointing to wrong path
+        # Force fresh import — 'model' may already be cached pointing to wrong
+        # path. Save the evicted modules: this module itself lives in the
+        # project's 'model' package, and if we don't put it back, later
+        # imports (e.g. api.py's is_ready) get a fresh copy with an empty
+        # _predictor_cache and report not-ready forever.
+        saved_mods = {}
         for mod in list(sys.modules.keys()):
             if mod == "model" or mod.startswith("model."):
-                del sys.modules[mod]
+                saved_mods[mod] = sys.modules.pop(mod)
 
         from model import Kronos, KronosTokenizer, KronosPredictor
 
-        # Restore path
+        # Restore path and the project's module identities
         sys.path = saved_path
+        for _name in [m for m in sys.modules if m == "model" or m.startswith("model.")]:
+            del sys.modules[_name]
+        sys.modules.update(saved_mods)
         # ---------------------------------------------------------
 
         tokenizer = KronosTokenizer.from_pretrained(KRONOS_TOKENIZER)
