@@ -386,10 +386,16 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     # do not loosen without beating /16 in backtest/backtest.py first.
     confidence = round(min(abs(score) / 16, 1.0), 2)
 
+    # Entry gate consumed by decide(): long entries only in an uptrend.
+    # Sweep (backtest/sweep.py 2026-06) showed this gate alone cuts losses
+    # roughly in half on both markets and lowers drawdown ~35%.
+    trend_up = compute_ema(c, 20) > ema50
+
     return {
         "score":      score,
         "direction":  direction,
         "confidence": confidence,
+        "trend_up":   bool(trend_up),
         "reasons":    reasons,
         "price":      price,
         "atr_pct":    round(compute_atr_pct(h, l, c), 5),

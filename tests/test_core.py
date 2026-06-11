@@ -52,6 +52,14 @@ def test_decide_kronos_disagreement_holds():
             "confidence": 0.9}
     assert decide(sig, lstm)[0] == "HOLD"
 
+def test_trend_gate_blocks_buy_in_downtrend():
+    sig = {"direction": "STRONG_BUY", "confidence": 0.5, "trend_up": False}
+    assert decide(sig, None)[0] == "HOLD"
+
+def test_trend_gate_allows_sell_in_downtrend():
+    sig = {"direction": "STRONG_SELL", "confidence": 0.5, "trend_up": False}
+    assert decide(sig, None)[0] == "SELL"
+
 def test_decide_fallback_ignores_kronos():
     sig  = {"direction": "STRONG_BUY", "confidence": 0.5}
     lstm = {"source": "fallback", "15m": "SELL", "30m": "SELL", "1h": "SELL",

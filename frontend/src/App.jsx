@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { CandlestickChart, LayoutGrid, Radio, Wallet, History, Cpu } from "lucide-react";
+import { CandlestickChart, LayoutGrid, Radio, Wallet, History, Cpu, Target } from "lucide-react";
 import PriceCard   from "./components/PriceCard";
 import SignalPanel from "./components/SignalPanel";
 import Portfolio   from "./components/Portfolio";
 import TradeLog    from "./components/TradeLog";
 import ModelStatus from "./components/ModelStatus";
+import Accuracy    from "./components/Accuracy";
 
 const NAV = [
   { id: "prices",    label: "Markets",   icon: LayoutGrid },
   { id: "signals",   label: "Signals",   icon: Radio      },
   { id: "portfolio", label: "Portfolio", icon: Wallet     },
   { id: "trades",    label: "Trades",    icon: History    },
+  { id: "accuracy",  label: "Accuracy",  icon: Target     },
   { id: "model",     label: "Model",     icon: Cpu        },
 ];
 
@@ -41,6 +43,8 @@ export default function App() {
   }, []);
 
   function renderPage() {
+    // Accuracy fetches via REST — works even before the first WS frame
+    if (page === "accuracy") return <Accuracy />;
     if (!data) return (
       <div className="flex items-center justify-center h-72 text-faint text-sm">
         {wsStatus === "connecting" ? "Connecting to server…" : "Waiting for data…"}

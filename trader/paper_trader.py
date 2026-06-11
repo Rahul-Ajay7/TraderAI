@@ -19,12 +19,15 @@ INDIAN_BALANCE  = 100000.0
 RISK_PER_TRADE  = 0.02
 MAX_OPEN_CRYPTO = 3
 MAX_OPEN_INDIAN = 5
+# Exit config from backtest/sweep.py (2026-06, "trend+tpwide" winner):
+# wider TP + trail lets winners run; with EMA20>EMA50 entry gate it scored
+# crypto -1.74% (5/5 beat b&h) and indian -1.84% (6/10) vs base -6%/-9%.
 STOP_LOSS_PCT   = 0.015
-TAKE_PROFIT_PCT = 0.03
+TAKE_PROFIT_PCT = 0.045
 
 # Trailing stop: arms once price is up TRAIL_ARM_PCT, exits on TRAIL_PCT pullback
 TRAIL_ARM_PCT   = 0.01
-TRAIL_PCT       = 0.012
+TRAIL_PCT       = 0.02
 
 # Round-trip realistic costs (taker fee / brokerage+STT+slippage)
 FEE_CRYPTO_PCT  = 0.001
@@ -91,6 +94,9 @@ def reload_positions():
 def decide(signal, lstm_result=None):
     sig_dir  = signal["direction"]
     sig_conf = signal["confidence"]
+    # Long entries only in an uptrend (EMA20 > EMA50). Default True so callers
+    # without the field (tests, old payloads) keep old behavior.
+    trend_ok = signal.get("trend_up", True)
 
     if lstm_result and lstm_result["source"] not in ("no_model","insufficient","fallback",""):
         votes    = [lstm_result.get("15m","HOLD"),
@@ -107,17 +113,17 @@ def decide(signal, lstm_result=None):
         combined = sig_conf * 0.6 + lstm_conf * 0.4
 
         if sig_dir in ("BUY","STRONG_BUY") and lstm_dir == "BUY":
-            return ("BUY",  round(combined, 2)) if combined > 0.25 else ("HOLD", combined)
+            return ("BUY",  round(combined, 2)) if combined > 0.25 and trend_ok else ("HOLD", combined)
         elif sig_dir in ("SELL","STRONG_SELL") and lstm_dir == "SELL":
             return ("SELL", round(combined, 2)) if combined > 0.25 else ("HOLD", combined)
-        elif sig_dir == "STRONG_BUY"  and lstm_dir == "HOLD" and sig_conf > 0.45:
+        elif sig_dir == "STRONG_BUY"  and lstm_dir == "HOLD" and sig_conf > 0.45 and trend_ok:
             return ("BUY",  round(sig_conf * 0.7, 2))
         elif sig_dir == "STRONG_SELL" and lstm_dir == "HOLD" and sig_conf > 0.45:
             return ("SELL", round(sig_conf * 0.7, 2))
         return ("HOLD", round(combined, 2))
 
-    if sig_dir == "STRONG_BUY"  and sig_conf > 0.40: return ("BUY",  sig_conf)
-    if sig_dir == "BUY"          and sig_conf > 0.35: return ("BUY",  sig_conf)
+    if sig_dir == "STRONG_BUY"  and sig_conf > 0.40 and trend_ok: return ("BUY",  sig_conf)
+    if sig_dir == "BUY"          and sig_conf > 0.35 and trend_ok: return ("BUY",  sig_conf)
     if sig_dir == "STRONG_SELL" and sig_conf > 0.40: return ("SELL", sig_conf)
     if sig_dir == "SELL"         and sig_conf > 0.35: return ("SELL", sig_conf)
     return ("HOLD", sig_conf)
