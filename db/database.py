@@ -24,11 +24,16 @@ def _ph(db):
     return "%s" if db == "pg" else "?"
 
 def _add_column(c, db, table, col, coltype):
-    """Idempotent ALTER TABLE ADD COLUMN (no IF NOT EXISTS in SQLite)."""
-    try:
-        c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
-    except Exception:
-        pass  # column already exists
+    """Idempotent ALTER TABLE ADD COLUMN.
+    PG: IF NOT EXISTS (a failed ALTER would abort the whole transaction).
+    SQLite: try/except — no IF NOT EXISTS support, but errors don't poison txn."""
+    if db == "pg":
+        c.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {coltype}")
+    else:
+        try:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
+        except Exception:
+            pass  # column already exists
 
 # ── Init ──────────────────────────────────────────────────────────────────────
 
