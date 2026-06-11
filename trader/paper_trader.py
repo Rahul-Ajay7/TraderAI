@@ -1,10 +1,16 @@
 """
 trader/paper_trader.py
-IMPROVED: 2-of-3 Kronos vote, stop-loss, take-profit, position reload from DB.
+IMPROVED v2:
+  - 2-of-3 Kronos vote, stop-loss, take-profit, trailing stop
+  - trading fees modeled (Binance 0.1%, Indian ~0.12%)
+  - volatility-scaled position sizing (ATR)
+  - daily loss limit, post-stop-loss cooldown
+  - position reload from DB (correct balance math)
 """
-import os, sys
+import os, sys, time
+from datetime import date
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from db.database import save_trade
+from db.database import save_trade, close_all_positions
 
 # ── Starting balances ─────────────────────────────────────────────────────────
 CRYPTO_BALANCE  = 1000.0
@@ -16,11 +22,44 @@ MAX_OPEN_INDIAN = 5
 STOP_LOSS_PCT   = 0.015
 TAKE_PROFIT_PCT = 0.03
 
+# Trailing stop: arms once price is up TRAIL_ARM_PCT, exits on TRAIL_PCT pullback
+TRAIL_ARM_PCT   = 0.01
+TRAIL_PCT       = 0.012
+
+# Round-trip realistic costs (taker fee / brokerage+STT+slippage)
+FEE_CRYPTO_PCT  = 0.001
+FEE_INDIAN_PCT  = 0.0012
+
+# Daily circuit breaker: stop opening new positions after this realized loss
+DAILY_LOSS_LIMIT_PCT = 0.05
+
+# No re-buy of a symbol for this long after a stop-loss exit
+COOLDOWN_SEC    = 60 * 60
+
+# Volatility sizing: target ATR% — size shrinks for wilder symbols
+TARGET_ATR_PCT  = 0.006
+VOL_SIZE_MIN    = 0.5
+VOL_SIZE_MAX    = 1.5
+
 # ── Portfolio state ───────────────────────────────────────────────────────────
 crypto_balance   = CRYPTO_BALANCE
 indian_balance   = INDIAN_BALANCE
 crypto_portfolio = {}
 indian_portfolio = {}
+
+_cooldowns       = {}                  # (symbol, market) → unix ts of SL exit
+_daily_pnl       = {"crypto": 0.0, "indian": 0.0}
+_daily_pnl_date  = date.today()
+
+def _roll_daily():
+    global _daily_pnl, _daily_pnl_date
+    if date.today() != _daily_pnl_date:
+        _daily_pnl      = {"crypto": 0.0, "indian": 0.0}
+        _daily_pnl_date = date.today()
+
+def _fee(market, notional):
+    pct = FEE_CRYPTO_PCT if market == "crypto" else FEE_INDIAN_PCT
+    return notional * pct
 
 # ── Reload open positions from DB on startup ──────────────────────────────────
 
@@ -31,16 +70,17 @@ def reload_positions():
     loaded = 0
     for pos in get_open_positions():
         entry = {"qty": pos["qty"], "entry": pos["entry"], "high_water": pos["entry"]}
+        cost  = pos["qty"] * pos["entry"]          # full cost, not 2% of it
         if pos["market"] == "crypto":
             if pos["symbol"] not in crypto_portfolio:
                 crypto_portfolio[pos["symbol"]] = entry
-                crypto_balance -= pos["qty"] * pos["entry"] * RISK_PER_TRADE
+                crypto_balance -= cost
                 loaded += 1
                 print(f"  [RELOAD] {pos['symbol']} crypto qty={pos['qty']:.6f} entry={pos['entry']:.2f}")
         else:
             if pos["symbol"] not in indian_portfolio:
                 indian_portfolio[pos["symbol"]] = entry
-                indian_balance -= pos["qty"] * pos["entry"] * RISK_PER_TRADE
+                indian_balance -= cost
                 loaded += 1
                 print(f"  [RELOAD] {pos['symbol']} indian qty={pos['qty']:.4f} entry={pos['entry']:.2f}")
     if loaded == 0:
@@ -82,35 +122,47 @@ def decide(signal, lstm_result=None):
     if sig_dir == "SELL"         and sig_conf > 0.35: return ("SELL", sig_conf)
     return ("HOLD", sig_conf)
 
-# ── Stop loss / Take profit ───────────────────────────────────────────────────
+# ── Stop loss / Take profit / Trailing stop ───────────────────────────────────
 
 def check_exit(symbol, market, current_price):
+    """Returns (action, reason) — action None when no exit triggered."""
     portfolio = crypto_portfolio if market == "crypto" else indian_portfolio
     if symbol not in portfolio:
-        return None
+        return None, None
     pos   = portfolio[symbol]
     entry = pos["entry"]
     if current_price > pos.get("high_water", entry):
         portfolio[symbol]["high_water"] = current_price
+    high_water = portfolio[symbol]["high_water"]
     pnl_pct = (current_price - entry) / entry
+
     if pnl_pct <= -STOP_LOSS_PCT:
         print(f"  [STOP-LOSS]   {symbol} {pnl_pct*100:.1f}%")
-        return "SELL"
+        return "SELL", "STOP_LOSS"
     if pnl_pct >= TAKE_PROFIT_PCT:
         print(f"  [TAKE-PROFIT] {symbol} +{pnl_pct*100:.1f}%")
-        return "SELL"
-    return None
+        return "SELL", "TAKE_PROFIT"
+    # Trailing stop: only once trade has been in profit by TRAIL_ARM_PCT
+    if high_water >= entry * (1 + TRAIL_ARM_PCT):
+        if current_price <= high_water * (1 - TRAIL_PCT):
+            locked = (current_price - entry) / entry
+            print(f"  [TRAIL-STOP]  {symbol} {locked*100:+.1f}% (peak +{(high_water/entry-1)*100:.1f}%)")
+            return "SELL", "TRAIL_STOP"
+    return None, None
 
 # ── Execution ─────────────────────────────────────────────────────────────────
 
-def execute_paper(symbol, market, action, price, confidence, score, reasons, lstm=None):
+def execute_paper(symbol, market, action, price, confidence, score, reasons,
+                  lstm=None, atr_pct=None):
     global crypto_balance, indian_balance
+    _roll_daily()
 
     is_crypto = market == "crypto"
     balance   = crypto_balance if is_crypto else indian_balance
     portfolio = crypto_portfolio if is_crypto else indian_portfolio
     max_open  = MAX_OPEN_CRYPTO if is_crypto else MAX_OPEN_INDIAN
     currency  = "USDT" if is_crypto else "INR"
+    start_bal = CRYPTO_BALANCE if is_crypto else INDIAN_BALANCE
 
     preds = {}
     if lstm:
@@ -118,22 +170,45 @@ def execute_paper(symbol, market, action, price, confidence, score, reasons, lst
                  "30m": lstm.get("30m","?"),
                  "1h":  lstm.get("1h","?")}
 
-    exit_signal = check_exit(symbol, market, price)
+    exit_signal, exit_reason = check_exit(symbol, market, price)
     if exit_signal == "SELL" and symbol in portfolio:
         action = "SELL"
+    elif action == "SELL":
+        exit_reason = "SIGNAL"
 
     if action == "BUY" and symbol not in portfolio:
         if len(portfolio) >= max_open:
             print(f"  [SKIP] {symbol} — max {max_open} positions")
             return
+        # Daily circuit breaker
+        if _daily_pnl[market] <= -start_bal * DAILY_LOSS_LIMIT_PCT:
+            print(f"  [SKIP] {symbol} — daily loss limit hit ({_daily_pnl[market]:+.2f})")
+            return
+        # Cooldown after recent stop-loss
+        cd = _cooldowns.get((symbol, market), 0)
+        if time.time() - cd < COOLDOWN_SEC:
+            print(f"  [SKIP] {symbol} — cooldown after stop-loss")
+            return
+
         trade_amt = balance * RISK_PER_TRADE
-        qty       = trade_amt / price
+        # Volatility scaling: wilder symbol → smaller position
+        if atr_pct and atr_pct > 0:
+            vol_factor = max(VOL_SIZE_MIN, min(VOL_SIZE_MAX, TARGET_ATR_PCT / atr_pct))
+            trade_amt *= vol_factor
+        qty = trade_amt / price
+        if not is_crypto:
+            qty       = max(1, int(qty))   # whole shares only
+            trade_amt = qty * price         # actual cost
+        fee = _fee(market, trade_amt)
+        if trade_amt + fee > balance:
+            print(f"  [SKIP] {symbol} — cost {trade_amt+fee:.2f} exceeds balance {balance:.2f}")
+            return
         portfolio[symbol] = {"qty": qty, "entry": price, "high_water": price}
-        if is_crypto: crypto_balance -= trade_amt
-        else:         indian_balance -= trade_amt
-        save_trade(symbol, market, "BUY", qty, price, score, confidence, preds)
+        if is_crypto: crypto_balance -= (trade_amt + fee)
+        else:         indian_balance -= (trade_amt + fee)
+        save_trade(symbol, market, "BUY", qty, price, score, confidence, preds, fee=fee)
         print(f"  [BUY]  {symbol} qty={qty:.4f} @ {price:.2f} {currency} "
-              f"| score={score:+d} conf={confidence:.2f} "
+              f"| score={score:+d} conf={confidence:.2f} fee={fee:.2f} "
               f"SL={price*(1-STOP_LOSS_PCT):.2f} TP={price*(1+TAKE_PROFIT_PCT):.2f}")
         if preds:
             print(f"         Kronos → 15m:{preds['15m']} 30m:{preds['30m']} 1h:{preds['1h']}")
@@ -142,13 +217,18 @@ def execute_paper(symbol, market, action, price, confidence, score, reasons, lst
         pos      = portfolio.pop(symbol)
         proceeds = pos["qty"] * price
         cost     = pos["qty"] * pos["entry"]
-        pnl      = proceeds - cost
+        fee      = _fee(market, proceeds)
+        pnl      = proceeds - cost - fee
         pnl_pct  = pnl / cost * 100
-        if is_crypto: crypto_balance += proceeds
-        else:         indian_balance += proceeds
-        save_trade(symbol, market, "SELL", pos["qty"], price, score, confidence, preds)
+        if is_crypto: crypto_balance += (proceeds - fee)
+        else:         indian_balance += (proceeds - fee)
+        _daily_pnl[market] += pnl
+        if exit_reason == "STOP_LOSS":
+            _cooldowns[(symbol, market)] = time.time()
+        save_trade(symbol, market, "SELL", pos["qty"], price, score, confidence, preds,
+                   pnl=round(pnl, 4), fee=fee, exit_reason=exit_reason or "SIGNAL")
         print(f"  [SELL] {symbol} qty={pos['qty']:.4f} @ {price:.2f} {currency} "
-              f"| PnL={pnl:+.2f} ({pnl_pct:+.1f}%)")
+              f"| PnL={pnl:+.2f} ({pnl_pct:+.1f}%) fee={fee:.2f} reason={exit_reason or 'SIGNAL'}")
 
     else:
         print(f"  [HOLD] {symbol} score={score:+d} dir={action}")
@@ -202,8 +282,14 @@ def get_state():
     }
 
 def reset():
+    """Resets balances AND closes DB positions so restart can't resurrect them."""
     global crypto_balance, indian_balance
     crypto_balance = CRYPTO_BALANCE
     indian_balance = INDIAN_BALANCE
     crypto_portfolio.clear()
     indian_portfolio.clear()
+    _cooldowns.clear()
+    _daily_pnl["crypto"] = 0.0
+    _daily_pnl["indian"] = 0.0
+    n = close_all_positions()
+    print(f"[RESET] Balances restored, {n} DB positions marked CLOSED")

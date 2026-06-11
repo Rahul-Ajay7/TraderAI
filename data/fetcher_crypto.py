@@ -10,20 +10,26 @@ from db.database import save_candles, candle_count
 CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
 BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 
-def fetch_crypto_candles(symbol, limit=500):
-    try:
-        r = requests.get(BASE_URL,
-            params={"symbol": symbol, "interval": "15m", "limit": limit},
-            timeout=10)
-        r.raise_for_status()
-        return [
-            (int(c[0]), float(c[1]), float(c[2]),
-             float(c[3]), float(c[4]), float(c[5]))
-            for c in r.json()
-        ]
-    except Exception as e:
-        print(f"[CRYPTO FETCH ERROR] {symbol}: {e}")
-        return []
+def fetch_crypto_candles(symbol, limit=500, retries=2):
+    for attempt in range(retries + 1):
+        try:
+            r = requests.get(BASE_URL,
+                params={"symbol": symbol, "interval": "15m", "limit": limit},
+                timeout=10)
+            r.raise_for_status()
+            return [
+                (int(c[0]), float(c[1]), float(c[2]),
+                 float(c[3]), float(c[4]), float(c[5]))
+                for c in r.json()
+            ]
+        except Exception as e:
+            if attempt < retries:
+                wait = 2 ** attempt
+                print(f"[CRYPTO FETCH RETRY] {symbol}: {e} — retry in {wait}s")
+                time.sleep(wait)
+            else:
+                print(f"[CRYPTO FETCH ERROR] {symbol}: {e}")
+    return []
 
 def get_crypto_price(symbol):
     try:

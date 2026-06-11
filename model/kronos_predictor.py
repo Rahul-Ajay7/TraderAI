@@ -99,6 +99,17 @@ def _direction(current_price, predicted_close, threshold=0.003):
     return "HOLD"
 
 
+def _atr_pct(candles, period=14):
+    """ATR as fraction of last close — per-symbol volatility scale."""
+    if len(candles) < period + 1:
+        return 0.003
+    trs = []
+    for i in range(1, len(candles)):
+        h, l, pc = candles[i][2], candles[i][3], candles[i-1][4]
+        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+    return float(np.mean(trs[-period:]) / (candles[-1][4] + 1e-9))
+
+
 def predict(candles, horizon_candles={"15m": 1, "30m": 2, "1h": 4}):
     if len(candles) < 60:
         return _fallback()
@@ -138,13 +149,19 @@ def predict(candles, horizon_candles={"15m": 1, "30m": 2, "1h": 4}):
         p30 = float(pred_df["close"].iloc[1])
         p1h = float(pred_df["close"].iloc[3])
 
+        # Volatility-relative threshold: BTC and a calm large-cap need different
+        # bars for what counts as a "move". Half an ATR, floored at 0.15%.
+        atr = _atr_pct(candles)
+        thr = max(0.0015, 0.5 * atr)
+
+        # Confidence = predicted 1h move in ATR units (1 ATR move → conf 0.5)
         move_pct   = abs(p1h - current_price) / current_price
-        confidence = round(min(move_pct / 0.02, 1.0), 2)
+        confidence = round(min(move_pct / (2 * atr + 1e-9), 1.0), 2)
 
         return {
-            "15m":               _direction(current_price, p15),
-            "30m":               _direction(current_price, p30),
-            "1h":                _direction(current_price, p1h),
+            "15m":               _direction(current_price, p15, thr),
+            "30m":               _direction(current_price, p30, thr),
+            "1h":                _direction(current_price, p1h, thr),
             "confidence":        confidence,
             "predicted_close_15m": round(p15, 4),
             "predicted_close_1h":  round(p1h, 4),

@@ -5,11 +5,16 @@ Fetches 15m candles from Yahoo Finance for:
   - Nifty 50 (^NSEI)
   - Sensex (^BSESN)
 yfinance gives 60 days of 15m history free — enough to train today.
+
+Market-hours check uses Asia/Kolkata explicitly (server may run UTC on Railway).
 """
 import sys, os, time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from db.database import save_candles, candle_count
+
+IST = ZoneInfo("Asia/Kolkata")
 
 INDIAN_STOCKS = [
     "RELIANCE.NS", "TCS.NS",        "INFY.NS",
@@ -24,9 +29,24 @@ ALL_INDIAN = INDIAN_STOCKS + INDICES
 MARKET_OPEN  = (9, 15)
 MARKET_CLOSE = (15, 30)
 
-def is_market_open():
-    now = datetime.now()
+# NSE trading holidays (YYYY-MM-DD). Verify against NSE circular each year:
+# https://www.nseindia.com/resources/exchange-communication-holidays
+NSE_HOLIDAYS = {
+    "2026-01-26",  # Republic Day
+    "2026-03-04",  # Holi
+    "2026-04-03",  # Good Friday
+    "2026-04-14",  # Ambedkar Jayanti
+    "2026-05-01",  # Maharashtra Day
+    "2026-10-02",  # Gandhi Jayanti
+    "2026-11-24",  # Guru Nanak Jayanti
+    "2026-12-25",  # Christmas
+}
+
+def is_market_open(now=None):
+    now = now or datetime.now(IST)
     if now.weekday() >= 5:       # Sat/Sun
+        return False
+    if now.strftime("%Y-%m-%d") in NSE_HOLIDAYS:
         return False
     t = (now.hour, now.minute)
     return MARKET_OPEN <= t <= MARKET_CLOSE
@@ -34,26 +54,32 @@ def is_market_open():
 def _market_label(symbol):
     return "index" if symbol in INDICES else "indian"
 
-def fetch_indian_candles(symbol, period="60d", interval="15m"):
-    try:
-        import yfinance as yf
-        df = yf.Ticker(symbol).history(period=period, interval=interval)
-        if df.empty:
-            return []
-        candles = []
-        for ts, row in df.iterrows():
-            candles.append((
-                int(ts.timestamp() * 1000),
-                float(row["Open"]),
-                float(row["High"]),
-                float(row["Low"]),
-                float(row["Close"]),
-                float(row["Volume"]),
-            ))
-        return candles
-    except Exception as e:
-        print(f"[INDIAN FETCH ERROR] {symbol}: {e}")
-        return []
+def fetch_indian_candles(symbol, period="60d", interval="15m", retries=2):
+    for attempt in range(retries + 1):
+        try:
+            import yfinance as yf
+            df = yf.Ticker(symbol).history(period=period, interval=interval)
+            if df.empty:
+                return []
+            candles = []
+            for ts, row in df.iterrows():
+                candles.append((
+                    int(ts.timestamp() * 1000),
+                    float(row["Open"]),
+                    float(row["High"]),
+                    float(row["Low"]),
+                    float(row["Close"]),
+                    float(row["Volume"]),
+                ))
+            return candles
+        except Exception as e:
+            if attempt < retries:
+                wait = 2 ** attempt
+                print(f"[INDIAN FETCH RETRY] {symbol}: {e} — retry in {wait}s")
+                time.sleep(wait)
+            else:
+                print(f"[INDIAN FETCH ERROR] {symbol}: {e}")
+    return []
 
 def get_indian_price(symbol):
     try:

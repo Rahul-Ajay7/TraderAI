@@ -11,7 +11,7 @@ const NAV = [
   { id: "signals",   label: "Signals",    icon: Radio      },
   { id: "portfolio", label: "Portfolio",  icon: Wallet     },
   { id: "trades",    label: "Trade Log",  icon: History    },
-  { id: "model",     label: "LSTM Model", icon: Cpu        },
+  { id: "model",     label: "Kronos Model", icon: Cpu      },
 ];
 
 export default function App() {

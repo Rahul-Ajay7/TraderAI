@@ -219,16 +219,28 @@ def compute_vwap(candles):
     vol = np.array([c[5] for c in candles])
     return np.sum(tp * vol) / (np.sum(vol) + 1e-9)
 
+# ─── ATR % ────────────────────────────────────────────────────────────────────
+
+def compute_atr_pct(highs, lows, closes, period=14):
+    """ATR as fraction of price — used for vol-scaled sizing + Kronos threshold."""
+    if len(closes) < period + 1:
+        return 0.0
+    trs = [
+        max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1]))
+        for i in range(1, len(closes))
+    ]
+    return float(np.mean(trs[-period:]) / (closes[-1] + 1e-9))
+
 # ─── MAIN SCORER ──────────────────────────────────────────────────────────────
 
 def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     if len(candles_15m) < 60:
         return {
             "score": 0, "direction": "HOLD", "confidence": 0,
-            "reasons": ["insufficient data"], "price": 0
+            "reasons": ["insufficient data"], "price": 0, "atr_pct": 0.0
         }
 
-    score   = 0
+    score   = 0.0
     reasons = []
 
     c   = _closes(candles_15m)
@@ -238,54 +250,62 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     v   = _vols(candles_15m)
     price = c[-1]
 
-    # 1. RSI
+    # Regime first — ADX decides which indicator family gets full weight.
+    # Trending market: fade mean-reversion signals. Ranging: fade trend signals.
+    adx, pdi, ndi = compute_adx(h, l, c)
+    trending  = adx > 25
+    ranging   = adx < 20
+    mr_w      = 0.5 if trending else 1.0   # mean-reversion weight (RSI, BB)
+    trend_w   = 0.5 if ranging  else 1.0   # trend-following weight (EMA, MACD, Supertrend)
+
+    # 1. RSI (mean-reversion)
     rsi = compute_rsi(c)
     if rsi < 30:
-        score += 2; reasons.append(f"RSI={rsi:.1f} oversold")
+        score += 2*mr_w; reasons.append(f"RSI={rsi:.1f} oversold")
     elif rsi < 40:
-        score += 1; reasons.append(f"RSI={rsi:.1f} approaching oversold")
+        score += 1*mr_w; reasons.append(f"RSI={rsi:.1f} approaching oversold")
     elif rsi > 70:
-        score -= 2; reasons.append(f"RSI={rsi:.1f} overbought")
+        score -= 2*mr_w; reasons.append(f"RSI={rsi:.1f} overbought")
     elif rsi > 60:
-        score -= 1; reasons.append(f"RSI={rsi:.1f} approaching overbought")
+        score -= 1*mr_w; reasons.append(f"RSI={rsi:.1f} approaching overbought")
 
-    # 2. EMA 9/21 crossover
+    # 2. EMA 9/21 crossover (trend)
     ema9    = compute_ema(c, 9)
     ema21   = compute_ema(c, 21)
     ema50   = compute_ema(c, 50)
     ema9_p  = compute_ema(c[:-1], 9)
     ema21_p = compute_ema(c[:-1], 21)
     if ema9 > ema21 and ema9_p <= ema21_p:
-        score += 2; reasons.append("Golden cross EMA9/21")
+        score += 2*trend_w; reasons.append("Golden cross EMA9/21")
     elif ema9 < ema21 and ema9_p >= ema21_p:
-        score -= 2; reasons.append("Death cross EMA9/21")
+        score -= 2*trend_w; reasons.append("Death cross EMA9/21")
     elif ema9 > ema21:
-        score += 1; reasons.append("EMA9 > EMA21 bullish")
+        score += 1*trend_w; reasons.append("EMA9 > EMA21 bullish")
     else:
-        score -= 1; reasons.append("EMA9 < EMA21 bearish")
+        score -= 1*trend_w; reasons.append("EMA9 < EMA21 bearish")
 
-    # 3. Price vs EMA50
+    # 3. Price vs EMA50 (trend)
     if price > ema50:
-        score += 1; reasons.append("Above EMA50")
+        score += 1*trend_w; reasons.append("Above EMA50")
     else:
-        score -= 1; reasons.append("Below EMA50")
+        score -= 1*trend_w; reasons.append("Below EMA50")
 
-    # 4. MACD
+    # 4. MACD (trend)
     try:
         macd, macd_sig = compute_macd(c)
         if macd > macd_sig:
-            score += 1; reasons.append("MACD bullish")
+            score += 1*trend_w; reasons.append("MACD bullish")
         else:
-            score -= 1; reasons.append("MACD bearish")
+            score -= 1*trend_w; reasons.append("MACD bearish")
     except:
         pass
 
-    # 5. Bollinger Bands
+    # 5. Bollinger Bands (mean-reversion)
     bb_upper, bb_mid, bb_lower = compute_bb(c)
     if price <= bb_lower:
-        score += 2; reasons.append("At BB lower — bounce zone")
+        score += 2*mr_w; reasons.append("At BB lower — bounce zone")
     elif price >= bb_upper:
-        score -= 2; reasons.append("At BB upper — overbought")
+        score -= 2*mr_w; reasons.append("At BB upper — overbought")
 
     # 6. Support / Resistance
     sr = find_sr_levels(h, l)
@@ -296,12 +316,12 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
         else:
             score -= 1; reasons.append(f"At resistance {near:.2f}")
 
-    # 7. Supertrend
+    # 7. Supertrend (trend)
     trend, *_ = compute_supertrend(h, l, c)
     if trend == "UP":
-        score += 1; reasons.append("Supertrend UP")
+        score += 1*trend_w; reasons.append("Supertrend UP")
     else:
-        score -= 1; reasons.append("Supertrend DOWN")
+        score -= 1*trend_w; reasons.append("Supertrend DOWN")
 
     # 8. Volume spike
     if is_volume_spike(v):
@@ -323,10 +343,8 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
                 score += 1; reasons.append(f"Fib {name} support")
             break
 
-    # 11. ADX — trend strength filter (NEW)
-    adx, pdi, ndi = compute_adx(h, l, c)
-    if adx > 25:
-        # Strong trend — amplify existing direction
+    # 11. ADX — directional bonus in strong trend
+    if trending:
         if pdi > ndi:
             score += 1; reasons.append(f"ADX={adx} strong uptrend")
         else:
@@ -369,6 +387,7 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
         "confidence": confidence,
         "reasons":    reasons,
         "price":      price,
+        "atr_pct":    round(compute_atr_pct(h, l, c), 5),
         "rsi":        round(rsi, 1),
         "ema9":       round(ema9, 4),
         "ema21":      round(ema21, 4),

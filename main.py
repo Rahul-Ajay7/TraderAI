@@ -16,7 +16,8 @@ print("[STARTUP] main.py executing...", flush=True)
 import time, threading
 from datetime import datetime
 
-from db.database          import init_db, load_candles, candle_count
+from db.database          import (init_db, load_candles, candle_count,
+                                   save_prediction, evaluate_predictions)
 from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
 from data.fetcher_indian  import (sync_indian, sync_indian_live,
                                    INDIAN_STOCKS, INDICES, is_market_open,
@@ -33,6 +34,25 @@ from backend.api          import app
 import uvicorn
 
 INTERVAL_SEC = 15 * 60
+STALE_AFTER_MIN = 45   # skip symbol if last candle older than this
+
+def _is_stale(candles):
+    if not candles:
+        return True
+    age_min = (time.time() * 1000 - candles[-1][0]) / 60000
+    return age_min > STALE_AFTER_MIN
+
+def _log_prediction(sym, market, candles, sig, lstm):
+    """Stores Kronos forecast so later cycles can score it vs reality."""
+    if lstm.get("source") != "kronos":
+        return
+    try:
+        save_prediction(sym, market, candles[-1][0], sig["price"],
+                        lstm.get("predicted_close_15m"),
+                        lstm.get("predicted_close_1h"),
+                        lstm.get("15m", "HOLD"), lstm.get("1h", "HOLD"))
+    except Exception as e:
+        print(f"  [PRED-LOG] {sym} failed: {e}", flush=True)
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +78,9 @@ def run_crypto_cycle():
         if len(candles) < 60:
             print(f"  [CRYPTO] {sym} collecting... {len(candles)}/60", flush=True)
             continue
+        if _is_stale(candles):
+            print(f"  [CRYPTO] {sym} data stale — skipping", flush=True)
+            continue
         sig  = compute_signal_score(candles, nifty_trend="SIDE", market="crypto")
         lstm = kronos_predict(candles)
         action, conf = decide(sig, lstm)
@@ -79,8 +102,10 @@ def run_crypto_cycle():
             lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [CRYPTO] {sym} price={sig['price']:.2f} score={sig['score']:+d} "
               f"sig={sig['direction']}{lstm_tag}", flush=True)
+        _log_prediction(sym, "crypto", candles, sig, lstm)
         execute_paper(sym, "crypto", action, sig["price"], conf,
-                      sig["score"], sig["reasons"], lstm)
+                      sig["score"], sig["reasons"], lstm,
+                      atr_pct=sig.get("atr_pct"))
     return prices, signals
 
 # ─── Indian cycle ─────────────────────────────────────────────────────────────
@@ -104,6 +129,9 @@ def run_indian_cycle():
         if len(candles) < 60:
             print(f"  [INDIAN] {sym} collecting... {len(candles)}/60", flush=True)
             continue
+        if _is_stale(candles):
+            print(f"  [INDIAN] {sym} data stale — skipping", flush=True)
+            continue
         sig  = compute_signal_score(candles, nifty_trend=nifty_trend, market="indian")
         lstm = kronos_predict(candles)
         action, conf = decide(sig, lstm)
@@ -125,15 +153,25 @@ def run_indian_cycle():
             lstm_tag = f" | Kronos 15m:{lstm['15m']} 30m:{lstm['30m']} 1h:{lstm['1h']}"
         print(f"  [INDIAN] {sym} price=₹{sig['price']:.2f} score={sig['score']:+d} "
               f"sig={sig['direction']}{lstm_tag}", flush=True)
+        _log_prediction(sym, "indian", candles, sig, lstm)
         execute_paper(sym, "indian", action, sig["price"], conf,
-                      sig["score"], sig["reasons"], lstm)
+                      sig["score"], sig["reasons"], lstm,
+                      atr_pct=sig.get("atr_pct"))
     return prices, signals
 
 # ─── Main cycle ───────────────────────────────────────────────────────────────
 
 def run_cycle():
+    t0  = time.time()
     now = datetime.now().strftime("%H:%M:%S")
     print(f"\n[{now}] ── CYCLE START ──", flush=True)
+
+    try:
+        n = evaluate_predictions()
+        if n:
+            print(f"  [PRED-EVAL] {n} predictions scored vs actuals", flush=True)
+    except Exception as e:
+        print(f"  [PRED-EVAL] failed: {e}", flush=True)
 
     c_prices, c_signals = run_crypto_cycle()
     i_prices, i_signals = run_indian_cycle()
@@ -148,6 +186,7 @@ def run_cycle():
     state["last_update"] = datetime.now().isoformat()
 
     portfolio_status()
+    print(f"  [CYCLE] took {time.time()-t0:.1f}s", flush=True)
 
 # ─── Status ───────────────────────────────────────────────────────────────────
 
