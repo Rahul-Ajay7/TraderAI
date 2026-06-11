@@ -1,70 +1,88 @@
-import { Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { History } from "lucide-react";
+import { Card, PageHeader, Badge, Empty, cleanSym, money } from "./ui";
+
+const EXIT_LABEL = {
+  STOP_LOSS:   "Stop loss",
+  TAKE_PROFIT: "Take profit",
+  TRAIL_STOP:  "Trail stop",
+  SIGNAL:      "Signal",
+  RESET:       "Reset",
+};
 
 export default function TradeLog({ trades = [] }) {
   if (!trades.length) return (
-    <div className="text-muted text-center py-12">
-      <Clock size={40} className="mx-auto mb-3 opacity-30"/>No trades yet
+    <div>
+      <PageHeader title="Trades" subtitle="Executed paper trades, newest first" />
+      <Empty icon={History} text="No trades yet" />
     </div>
   );
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-5">Trade History</h2>
-      <div className="bg-card rounded-xl border border-gray-800 overflow-hidden">
+      <PageHeader title="Trades" subtitle="Executed paper trades, newest first" />
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-[13px] whitespace-nowrap">
             <thead>
-              <tr className="text-muted text-xs border-b border-gray-800 bg-dark/50">
-                {["Time","Symbol","Market","Side","Price","Score","Conf","15m","30m","1h"].map(h => (
-                  <th key={h} className={`py-3 px-3 ${h==="Time"||h==="Symbol"||h==="Market"||h==="Side" ? "text-left":"text-right"}`}>{h}</th>
-                ))}
+              <tr className="text-faint text-[11px] uppercase tracking-wider border-b border-line">
+                <th className="text-left  font-medium py-3 px-4">Time</th>
+                <th className="text-left  font-medium py-3 px-4">Symbol</th>
+                <th className="text-left  font-medium py-3 px-4">Side</th>
+                <th className="text-right font-medium py-3 px-4">Qty</th>
+                <th className="text-right font-medium py-3 px-4">Price</th>
+                <th className="text-right font-medium py-3 px-4">P&L</th>
+                <th className="text-right font-medium py-3 px-4">Fee</th>
+                <th className="text-left  font-medium py-3 px-4">Exit</th>
+                <th className="text-right font-medium py-3 px-4">Score</th>
+                <th className="text-right font-medium py-3 px-4">Conf</th>
               </tr>
             </thead>
             <tbody>
-              {trades.map((t, i) => (
-                <tr key={i} className="border-b border-gray-800/40 hover:bg-white/[0.02]">
-                  <td className="py-2.5 px-3 text-muted text-[11px] whitespace-nowrap">{t.time||"--"}</td>
-                  <td className="py-2.5 px-3 font-medium">
-                    {(t.symbol||"").replace("USDT","").replace(".NS","").replace("^","")}
-                  </td>
-                  <td className="py-2.5 px-3 text-xs text-muted capitalize">{t.market}</td>
-                  <td className="py-2.5 px-3">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded
-                      ${t.side==="BUY" ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
-                      {t.side==="BUY" ? <ArrowUpRight size={11}/> : <ArrowDownRight size={11}/>}
-                      {t.side}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono">
-                    {t.market==="indian"?"₹":"$"}{typeof t.price==="number" ? t.price.toFixed(2) : "--"}
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded
-                      ${t.score>0 ? "text-green-400 bg-green-400/10"
-                        : t.score<0 ? "text-red-400 bg-red-400/10"
-                        : "text-yellow-400 bg-yellow-400/10"}`}>
-                      {t.score!=null ? (t.score>0?`+${t.score}`:t.score) : "--"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-xs font-mono">
-                    {t.confidence!=null ? `${(t.confidence*100).toFixed(0)}%` : "--"}
-                  </td>
-                  {["pred_15m","pred_30m","pred_1h"].map(k => (
-                    <td key={k} className="py-2.5 px-3 text-right">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
-                        ${t[k]==="BUY" ? "text-green-400 bg-green-400/10"
-                          : t[k]==="SELL" ? "text-red-400 bg-red-400/10"
-                          : "text-yellow-400 bg-yellow-400/10"}`}>
-                        {t[k]||"--"}
+              {trades.map((t, i) => {
+                const inr = t.market === "indian";
+                return (
+                  <tr key={i} className="border-b border-line/50 last:border-0 hover:bg-white/[0.02]">
+                    <td className="py-2.5 px-4 text-faint text-[11px] tnum">{t.time || "--"}</td>
+                    <td className="py-2.5 px-4">
+                      <span className="font-medium">{cleanSym(t.symbol)}</span>
+                      <span className="ml-1.5 text-[10px] text-faint uppercase">{t.market}</span>
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <Badge tone={t.side === "BUY" ? "up" : "down"}>{t.side}</Badge>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tnum text-muted text-[12px]">
+                      {t.qty ?? "--"}
+                    </td>
+                    <td className="py-2.5 px-4 text-right tnum">
+                      {money(t.price, inr)}
+                    </td>
+                    <td className={`py-2.5 px-4 text-right tnum font-medium
+                      ${t.pnl == null ? "text-faint"
+                        : t.pnl >= 0 ? "text-up" : "text-down"}`}>
+                      {t.pnl != null ? `${t.pnl >= 0 ? "+" : ""}${money(t.pnl, inr)}` : "--"}
+                    </td>
+                    <td className="py-2.5 px-4 text-right tnum text-muted text-[12px]">
+                      {t.fee ? money(t.fee, inr) : "--"}
+                    </td>
+                    <td className="py-2.5 px-4 text-[12px] text-muted">
+                      {EXIT_LABEL[t.exit_reason] || (t.exit_reason ?? "--")}
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      <span className={`tnum text-[12px] font-medium
+                        ${t.score > 0 ? "text-up" : t.score < 0 ? "text-down" : "text-faint"}`}>
+                        {t.score != null ? (t.score > 0 ? `+${t.score}` : t.score) : "--"}
                       </span>
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    <td className="py-2.5 px-4 text-right tnum text-[12px] text-muted">
+                      {t.confidence != null ? `${(t.confidence * 100).toFixed(0)}%` : "--"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
