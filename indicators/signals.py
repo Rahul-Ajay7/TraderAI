@@ -379,7 +379,12 @@ def compute_signal_score(candles_15m, nifty_trend="SIDE", market="crypto"):
     elif score <= -2:   direction = "SELL"
     else:               direction = "HOLD"
 
-    confidence = round(min(abs(score) / 16, 1.0), 2)  # max score now ~16
+    # Deliberately conservative scale. In signal-only mode decide() needs
+    # conf > 0.35-0.40, so /16 means only score >= 6.5 ever trades — few trades.
+    # Backtested alternatives (2026-06): /8 → 4x trades, avg -28% crypto (0/5
+    # beat buy&hold); /12 → -14% (2/5); /16 → -6% (5/5). Fees punish frequency;
+    # do not loosen without beating /16 in backtest/backtest.py first.
+    confidence = round(min(abs(score) / 16, 1.0), 2)
 
     return {
         "score":      score,
