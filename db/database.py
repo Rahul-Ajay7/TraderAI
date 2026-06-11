@@ -11,6 +11,21 @@ import os, sqlite3
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# psycopg2 does not adapt numpy scalars (registry lookup skips the MRO, and
+# numpy 2.x repr "np.float64(...)" leaks into SQL → InvalidSchemaName: "np").
+# Register explicit adapters once. SQLite is unaffected (np.float64 is a
+# float subclass).
+if DATABASE_URL:
+    try:
+        import numpy as _np
+        from psycopg2.extensions import register_adapter, AsIs, Float
+        for _t in (_np.float64, _np.float32, _np.float16):
+            register_adapter(_t, lambda v: Float(float(v)))
+        for _t in (_np.int64, _np.int32, _np.int16, _np.bool_):
+            register_adapter(_t, lambda v: AsIs(int(v)))
+    except Exception as _e:
+        print(f"[DB] numpy adapter registration failed: {_e}", flush=True)
+
 # ── Connection helper ─────────────────────────────────────────────────────────
 
 def _get_conn():
