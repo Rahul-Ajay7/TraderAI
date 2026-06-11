@@ -383,6 +383,30 @@ def prediction_stats():
         "mae_pct_1h":   round(mae1h / n * 100, 3),
     }
 
+# ── Health / diagnostics ─────────────────────────────────────────────────────
+
+def db_info():
+    """Which engine is live + row counts. SQLite on Railway = data lost on
+    every redeploy (ephemeral filesystem) — surface that loudly."""
+    conn, db = _get_conn()
+    c = conn.cursor()
+    counts = {}
+    for table in ("candles", "trades", "predictions"):
+        try:
+            c.execute(f"SELECT COUNT(*) FROM {table}")
+            counts[table] = c.fetchone()[0]
+        except Exception:
+            counts[table] = None
+    conn.close()
+    return {
+        "engine": "postgresql" if db == "pg" else "sqlite",
+        "persistent": db == "pg",
+        "warning": None if db == "pg" else
+            "SQLite on ephemeral filesystem — all data wiped on every redeploy. "
+            "Attach a PostgreSQL service and set DATABASE_URL.",
+        "counts": counts,
+    }
+
 # ── DB Path (SQLite only) ─────────────────────────────────────────────────────
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "prices.db"))

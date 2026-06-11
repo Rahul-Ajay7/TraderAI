@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from backend.state import state
 from backend.websocket import manager
-from db.database import get_all_trades, prediction_stats, trade_stats, DB_PATH
+from db.database import get_all_trades, prediction_stats, trade_stats, db_info, DB_PATH
 
 app = FastAPI(title="TraderAI API")
 
@@ -64,6 +64,11 @@ async def reset_portfolio():
     import trader.paper_trader as pt
     pt.reset()
     return {"status": "reset", "crypto": pt.CRYPTO_BALANCE, "indian": pt.INDIAN_BALANCE}
+
+@app.get("/api/health")
+async def health():
+    """DB engine, persistence, row counts — first stop when data looks missing."""
+    return db_info()
 
 @app.get("/api/accuracy")
 async def get_accuracy():
