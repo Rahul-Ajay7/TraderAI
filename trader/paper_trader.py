@@ -7,7 +7,7 @@ IMPROVED v2:
   - daily loss limit, post-stop-loss cooldown
   - position reload from DB (correct balance math)
 """
-import os, sys, time
+import os, sys, time, threading
 from datetime import date
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from db.database import save_trade, close_all_positions
@@ -158,8 +158,16 @@ def check_exit(symbol, market, current_price):
 
 # ── Execution ─────────────────────────────────────────────────────────────────
 
-def execute_paper(symbol, market, action, price, confidence, score, reasons,
-                  lstm=None, atr_pct=None):
+# The 15-min cycle thread and the fast exit-guard thread both execute trades;
+# serialize so a position can't be sold twice or balance updated concurrently.
+_exec_lock = threading.Lock()
+
+def execute_paper(*args, **kwargs):
+    with _exec_lock:
+        return _execute_paper(*args, **kwargs)
+
+def _execute_paper(symbol, market, action, price, confidence, score, reasons,
+                   lstm=None, atr_pct=None):
     global crypto_balance, indian_balance
     _roll_daily()
 

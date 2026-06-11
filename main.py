@@ -34,6 +34,7 @@ from backend.api          import app
 import uvicorn
 
 INTERVAL_SEC = 15 * 60
+EXIT_GUARD_SEC = 150   # SL/TP/trail check on open positions between cycles
 STALE_AFTER_MIN = 45   # skip symbol if last candle older than this
 
 def _is_stale(candles):
@@ -159,6 +160,47 @@ def run_indian_cycle():
                       atr_pct=sig.get("atr_pct"))
     return prices, signals
 
+# ─── Exit guard ───────────────────────────────────────────────────────────────
+# Entries happen once per closed 15m candle (what the backtest validated).
+# Exits can't wait 15 min: price can blow far past a -1.5% stop between
+# cycles. This loop only re-checks SL/TP/trail on symbols we actually hold —
+# one cheap price fetch per held symbol, no signals, no Kronos.
+
+def exit_guard():
+    import trader.paper_trader as pt
+    from data.fetcher_crypto import get_crypto_price
+    from data.fetcher_indian import get_indian_price
+
+    while True:
+        time.sleep(EXIT_GUARD_SEC)
+        try:
+            sold = False
+            for sym in list(pt.crypto_portfolio.keys()):
+                price = get_crypto_price(sym)
+                if not price:
+                    continue
+                action, reason = pt.check_exit(sym, "crypto", price)
+                if action == "SELL":
+                    print(f"  [GUARD] {sym} exit @ {price:.2f} ({reason})", flush=True)
+                    # HOLD action: execute_paper re-runs check_exit and sells
+                    pt.execute_paper(sym, "crypto", "HOLD", price, 0.0, 0, [], None)
+                    sold = True
+            if is_market_open():
+                for sym in list(pt.indian_portfolio.keys()):
+                    price = get_indian_price(sym)
+                    if not price:
+                        continue
+                    action, reason = pt.check_exit(sym, "indian", price)
+                    if action == "SELL":
+                        print(f"  [GUARD] {sym} exit @ {price:.2f} ({reason})", flush=True)
+                        pt.execute_paper(sym, "indian", "HOLD", price, 0.0, 0, [], None)
+                        sold = True
+            if sold:
+                state["portfolio"]   = get_state()
+                state["last_update"] = datetime.now().isoformat()
+        except Exception as e:
+            print(f"  [GUARD] error: {e}", flush=True)
+
 # ─── Main cycle ───────────────────────────────────────────────────────────────
 
 def run_cycle():
@@ -233,6 +275,9 @@ def main():
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     threading.Thread(target=_api, daemon=True).start()
     print(f"[INIT] API started\n", flush=True)
+
+    threading.Thread(target=exit_guard, daemon=True).start()
+    print(f"[INIT] Exit guard running every {EXIT_GUARD_SEC}s", flush=True)
 
     while True:
         try:
