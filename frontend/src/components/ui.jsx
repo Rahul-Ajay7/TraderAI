@@ -78,6 +78,19 @@ export function cleanSym(s = "") {
   return s.replace("USDT", "").replace(".NS", "").replace("^", "");
 }
 
+// DB timestamps are stored UTC with no tz marker ("YYYY-MM-DD HH:MM:SS").
+// Parse as UTC, render in IST — the market the bot actually trades on.
+export function fmtIST(ts) {
+  if (!ts) return "--";
+  const d = new Date(ts.replace(" ", "T") + "Z");
+  if (isNaN(d)) return ts;
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }) + " IST";
+}
+
 export function money(v, inr = false, digits = 2) {
   if (typeof v !== "number") return "--";
   return (inr ? "₹" : "$") + v.toLocaleString("en-IN", {

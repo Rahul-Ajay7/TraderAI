@@ -1,5 +1,5 @@
 import { History } from "lucide-react";
-import { Card, PageHeader, Badge, Empty, cleanSym, money } from "./ui";
+import { Card, PageHeader, Badge, Empty, cleanSym, money, fmtIST } from "./ui";
 
 const EXIT_LABEL = {
   STOP_LOSS:   "Stop loss",
@@ -42,7 +42,7 @@ export default function TradeLog({ trades = [] }) {
                 const inr = t.market === "indian";
                 return (
                   <tr key={i} className="border-b border-line/50 last:border-0 hover:bg-white/[0.02]">
-                    <td className="py-2.5 px-4 text-faint text-[11px] tnum">{t.time || "--"}</td>
+                    <td className="py-2.5 px-4 text-faint text-[11px] tnum">{fmtIST(t.time)}</td>
                     <td className="py-2.5 px-4">
                       <span className="font-medium">{cleanSym(t.symbol)}</span>
                       <span className="ml-1.5 text-[10px] text-faint uppercase">{t.market}</span>
