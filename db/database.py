@@ -177,6 +177,45 @@ def save_candles(symbol, market, candles):
     conn.commit()
     conn.close()
 
+# ── Prune old candles ─────────────────────────────────────────────────────────
+
+def prune_candles(keep_per_symbol=600):
+    """Keep only the newest `keep_per_symbol` candles per (symbol, market).
+    Candles are the biggest table and only the recent tail is ever read
+    (signals use ~200, prediction eval needs a few past the pred time).
+    Trades and predictions are NEVER touched. Returns rows deleted."""
+    conn, db = _get_conn()
+    c = conn.cursor()
+    try:
+        if db == "pg":
+            c.execute("""
+                DELETE FROM candles WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY symbol, market ORDER BY open_time DESC
+                        ) AS rn FROM candles
+                    ) t WHERE t.rn > %s
+                )
+            """, (keep_per_symbol,))
+        else:
+            c.execute("""
+                DELETE FROM candles WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY symbol, market ORDER BY open_time DESC
+                        ) AS rn FROM candles
+                    ) t WHERE t.rn > ?
+                )
+            """, (keep_per_symbol,))
+        deleted = c.rowcount
+        conn.commit()
+    except Exception as e:
+        deleted = 0
+        print(f"[DB] prune_candles failed: {e}", flush=True)
+    finally:
+        conn.close()
+    return deleted
+
 # ── Load candles ──────────────────────────────────────────────────────────────
 
 def load_candles(symbol, market, limit=200):

@@ -17,7 +17,8 @@ import time, threading
 from datetime import datetime
 
 from db.database          import (init_db, load_candles, candle_count,
-                                   save_prediction, evaluate_predictions)
+                                   save_prediction, evaluate_predictions,
+                                   prune_candles)
 from data.fetcher_crypto  import sync_crypto, sync_crypto_live, CRYPTO_SYMBOLS
 from data.fetcher_indian  import (sync_indian, sync_indian_live,
                                    INDIAN_STOCKS, INDICES, is_market_open,
@@ -203,7 +204,10 @@ def exit_guard():
 
 # ─── Main cycle ───────────────────────────────────────────────────────────────
 
+_cycle_count = 0
+
 def run_cycle():
+    global _cycle_count
     t0  = time.time()
     now = datetime.now().strftime("%H:%M:%S")
     print(f"\n[{now}] ── CYCLE START ──", flush=True)
@@ -214,6 +218,17 @@ def run_cycle():
             print(f"  [PRED-EVAL] {n} predictions scored vs actuals", flush=True)
     except Exception as e:
         print(f"  [PRED-EVAL] failed: {e}", flush=True)
+
+    # Housekeeping: trim the candles table (~daily). Only candles — trades and
+    # predictions kept forever. Run after eval so eval still sees old candles.
+    _cycle_count += 1
+    if _cycle_count % 96 == 1:
+        try:
+            d = prune_candles(keep_per_symbol=600)
+            if d:
+                print(f"  [PRUNE] removed {d} old candles", flush=True)
+        except Exception as e:
+            print(f"  [PRUNE] failed: {e}", flush=True)
 
     c_prices, c_signals = run_crypto_cycle()
     i_prices, i_signals = run_indian_cycle()

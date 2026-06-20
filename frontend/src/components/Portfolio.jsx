@@ -70,10 +70,11 @@ function PortfolioSection({ title, data = {}, inr }) {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-faint text-[11px] uppercase tracking-wider">
-                <th className="text-left font-medium py-2.5 px-5">Symbol</th>
+                <th className="text-left  font-medium py-2.5 px-5">Symbol</th>
                 <th className="text-right font-medium py-2.5 px-5">Qty</th>
                 <th className="text-right font-medium py-2.5 px-5">Entry</th>
-                <th className="text-right font-medium py-2.5 px-5">Cost</th>
+                <th className="text-right font-medium py-2.5 px-5">Price</th>
+                <th className="text-right font-medium py-2.5 px-5">Unreal. P&L</th>
               </tr>
             </thead>
             <tbody>
@@ -83,8 +84,11 @@ function PortfolioSection({ title, data = {}, inr }) {
                   <td className="py-2.5 px-5 text-right tnum text-muted">{h.qty}</td>
                   <td className="py-2.5 px-5 text-right tnum">{money(h.entry, inr)}</td>
                   <td className="py-2.5 px-5 text-right tnum">
-                    {typeof h.qty === "number" && typeof h.entry === "number"
-                      ? money(h.qty * h.entry, inr) : "--"}
+                    {h.price != null ? money(h.price, inr) : "--"}
+                  </td>
+                  <td className={`py-2.5 px-5 text-right tnum font-medium
+                    ${h.pnl == null ? "text-faint" : h.pnl >= 0 ? "text-up" : "text-down"}`}>
+                    {h.pnl != null ? `${h.pnl >= 0 ? "+" : ""}${money(h.pnl, inr)}` : "--"}
                   </td>
                 </tr>
               ))}

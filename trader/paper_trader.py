@@ -51,6 +51,7 @@ crypto_portfolio = {}
 indian_portfolio = {}
 
 _cooldowns       = {}                  # (symbol, market) → unix ts of SL exit
+_last_price      = {}                  # (symbol, market) → latest seen price (mark-to-market)
 _daily_pnl       = {"crypto": 0.0, "indian": 0.0}
 _daily_pnl_date  = date.today()
 
@@ -132,6 +133,7 @@ def decide(signal, lstm_result=None):
 
 def check_exit(symbol, market, current_price):
     """Returns (action, reason) — action None when no exit triggered."""
+    _last_price[(symbol, market)] = current_price   # mark-to-market for P&L
     portfolio = crypto_portfolio if market == "crypto" else indian_portfolio
     if symbol not in portfolio:
         return None, None
@@ -261,38 +263,31 @@ def portfolio_status():
         print("  No open positions")
     print(f"{'─'*55}\n")
 
+def _market_state(portfolio, balance, start_bal, market, qty_dp):
+    holdings = []
+    mtm = 0.0
+    for s, p in portfolio.items():
+        px = _last_price.get((s, market), p["entry"])
+        mtm += p["qty"] * px
+        holdings.append({
+            "symbol": s, "qty": round(p["qty"], qty_dp), "entry": p["entry"],
+            "price": round(px, 2),
+            "pnl": round((px - p["entry"]) * p["qty"], 2),          # unrealized
+            "sl": round(p["entry"]*(1-STOP_LOSS_PCT), 2),
+            "tp": round(p["entry"]*(1+TAKE_PROFIT_PCT), 2),
+        })
+    total = balance + mtm
+    return {
+        "balance": round(balance, 2),
+        "holdings": holdings,
+        "total_value": round(total, 2),
+        "pnl": round(total - start_bal, 2),   # realized (in cash) + unrealized (mtm)
+    }
+
 def get_state():
     return {
-        "crypto": {
-            "balance": round(crypto_balance, 2),
-            "holdings": [
-                {"symbol": s, "qty": round(p["qty"],6), "entry": p["entry"],
-                 "sl": round(p["entry"]*(1-STOP_LOSS_PCT),2),
-                 "tp": round(p["entry"]*(1+TAKE_PROFIT_PCT),2)}
-                for s, p in crypto_portfolio.items()
-            ],
-            "total_value": round(
-                crypto_balance + sum(p["qty"]*p["entry"]
-                for p in crypto_portfolio.values()), 2),
-            "pnl": round(
-                crypto_balance + sum(p["qty"]*p["entry"]
-                for p in crypto_portfolio.values()) - CRYPTO_BALANCE, 2),
-        },
-        "indian": {
-            "balance": round(indian_balance, 2),
-            "holdings": [
-                {"symbol": s, "qty": round(p["qty"],4), "entry": p["entry"],
-                 "sl": round(p["entry"]*(1-STOP_LOSS_PCT),2),
-                 "tp": round(p["entry"]*(1+TAKE_PROFIT_PCT),2)}
-                for s, p in indian_portfolio.items()
-            ],
-            "total_value": round(
-                indian_balance + sum(p["qty"]*p["entry"]
-                for p in indian_portfolio.values()), 2),
-            "pnl": round(
-                indian_balance + sum(p["qty"]*p["entry"]
-                for p in indian_portfolio.values()) - INDIAN_BALANCE, 2),
-        }
+        "crypto": _market_state(crypto_portfolio, crypto_balance, CRYPTO_BALANCE, "crypto", 6),
+        "indian": _market_state(indian_portfolio, indian_balance, INDIAN_BALANCE, "indian", 4),
     }
 
 def reset():
