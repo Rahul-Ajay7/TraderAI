@@ -94,9 +94,16 @@ async def startup():
     asyncio.create_task(_broadcast_loop())
 
 async def _broadcast_loop():
+    # MUST never let an exception escape the loop — a single throw (e.g. a PG
+    # connection-cap hit in get_all_trades) used to kill this task for good,
+    # leaving WS clients connected but receiving nothing → blank UI.
     while True:
         await asyncio.sleep(5)
-        if manager.active:
+        try:
+            if not manager.active:
+                continue
             state["trades"] = get_all_trades(limit=50)
             _model_status()
             await manager.broadcast(state)
+        except Exception as e:
+            print(f"[WS] broadcast tick failed: {e}", flush=True)
