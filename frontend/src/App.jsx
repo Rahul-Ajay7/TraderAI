@@ -51,7 +51,7 @@ export default function App() {
       </div>
     );
     switch (page) {
-      case "prices":    return <PriceCard   prices={data.prices}    signals={data.signals} />;
+      case "prices":    return <PriceCard   prices={data.prices}    signals={data.signals} indices={data.indices} />;
       case "signals":   return <SignalPanel signals={data.signals}  prices={data.prices}  />;
       case "portfolio": return <Portfolio   portfolio={data.portfolio} />;
       case "trades":    return <TradeLog    trades={data.trades}    />;

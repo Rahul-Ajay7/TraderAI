@@ -110,6 +110,30 @@ def run_crypto_cycle():
                       atr_pct=sig.get("atr_pct"))
     return prices, signals
 
+# ─── Index context (Nifty / Sensex — shown, not traded) ──────────────────────
+
+INDEX_NAMES = {"^NSEI": "Nifty 50", "^BSESN": "Sensex"}
+
+def index_context():
+    """Latest price + intraday change + trend for the indices. Context only —
+    these drive Indian-stock sentiment, they are never traded. Reads stored
+    candles so it still shows last session's close when the market is shut."""
+    out = {}
+    for sym in INDICES:
+        candles = load_candles(sym, "index", limit=30)
+        if len(candles) < 2:
+            continue
+        closes = [c[4] for c in candles]
+        # change vs first candle of the session-window we have
+        chg = (closes[-1] - closes[0]) / closes[0] * 100
+        out[sym] = {
+            "name":       INDEX_NAMES.get(sym, sym),
+            "price":      round(closes[-1], 2),
+            "change_pct": round(chg, 2),
+            "trend":      get_nifty_trend(candles),
+        }
+    return out
+
 # ─── Indian cycle ─────────────────────────────────────────────────────────────
 
 def run_indian_cycle():
@@ -238,6 +262,7 @@ def run_cycle():
 
     state["prices"]      = all_prices
     state["signals"]     = all_signals
+    state["indices"]     = index_context()
     state["portfolio"]   = get_state()
     state["market_open"] = is_market_open()
     state["last_update"] = datetime.now().isoformat()

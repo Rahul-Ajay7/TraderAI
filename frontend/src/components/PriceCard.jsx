@@ -1,6 +1,38 @@
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Card, PageHeader, Badge, toneFor, cleanSym, money } from "./ui";
 
+const TREND_TONE = { UP: "up", DOWN: "down", SIDE: "neutral" };
+
+function IndexStrip({ indices }) {
+  const list = Object.values(indices || {});
+  if (!list.length) return null;
+  return (
+    <div className="flex flex-wrap gap-3 mb-6">
+      {list.map(ix => {
+        const up = (ix.change_pct ?? 0) >= 0;
+        return (
+          <Card key={ix.name} className="flex items-center gap-4 px-4 py-2.5">
+            <div>
+              <div className="text-[11px] text-faint">{ix.name}</div>
+              <div className="text-[15px] font-semibold tnum leading-tight">
+                {(ix.price ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`flex items-center gap-0.5 text-[12px] font-medium tnum
+                ${up ? "text-up" : "text-down"}`}>
+                {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                {Math.abs(ix.change_pct ?? 0).toFixed(2)}%
+              </span>
+              <Badge tone={TREND_TONE[ix.trend] || "neutral"}>{ix.trend}</Badge>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function SymbolCard([sym, p], signals) {
   const sig    = signals[sym] || {};
   const score  = sig.score || 0;
@@ -52,13 +84,14 @@ function Section({ title, items, signals }) {
   );
 }
 
-export default function PriceCard({ prices = {}, signals = {} }) {
+export default function PriceCard({ prices = {}, signals = {}, indices = {} }) {
   const crypto = Object.entries(prices).filter(([, v]) => v.market === "crypto");
   const indian = Object.entries(prices).filter(([, v]) => v.market === "indian");
 
   return (
     <div>
       <PageHeader title="Markets" subtitle="Live prices with current signal score and direction" />
+      <IndexStrip indices={indices} />
       <Section title="Crypto" items={crypto} signals={signals} />
       <Section title="Indian equities" items={indian} signals={signals} />
       {!crypto.length && !indian.length && (
