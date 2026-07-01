@@ -22,17 +22,18 @@ WINDOW = 200
 
 CONFIGS = {
     #                 sl     tp     arm    trail  trend  atr_exits
-    "base":          dict(sl=0.015, tp=0.030, arm=0.010, trail=0.012, trend=False, atr=False),
-    "trend_gate":    dict(sl=0.015, tp=0.030, arm=0.010, trail=0.012, trend=True,  atr=False),
-    "sl_tight":      dict(sl=0.010, tp=0.030, arm=0.010, trail=0.012, trend=False, atr=False),
-    "tp_wide":       dict(sl=0.015, tp=0.045, arm=0.010, trail=0.020, trend=False, atr=False),
-    "trend+tpwide":  dict(sl=0.015, tp=0.045, arm=0.010, trail=0.020, trend=True,  atr=False),
-    "trend+sltight": dict(sl=0.010, tp=0.030, arm=0.010, trail=0.012, trend=True,  atr=False),
-    "atr_exits":     dict(sl=None,  tp=None,  arm=0.010, trail=0.012, trend=False, atr=True),
-    "trend+atr":     dict(sl=None,  tp=None,  arm=0.010, trail=0.012, trend=True,  atr=True),
+    "LIVE(tpwide)":  dict(sl=0.015, tp=0.045, arm=0.010, trail=0.020, trend=True,  atr=False),
+    # STOP_LOSS was the #1 live bleeder — test wider stops (less premature shakeout)
+    "sl_wide":       dict(sl=0.022, tp=0.045, arm=0.010, trail=0.020, trend=True,  atr=False),
+    "sl_wider":      dict(sl=0.025, tp=0.050, arm=0.010, trail=0.025, trend=True,  atr=False),
+    "sl_wide+tpbig": dict(sl=0.022, tp=0.060, arm=0.012, trail=0.025, trend=True,  atr=False),
+    # Indian trail gave back gains — looser trail lets winners breathe
+    "trail_loose":   dict(sl=0.020, tp=0.050, arm=0.015, trail=0.030, trend=True,  atr=False),
+    # ATR-scaled stops adapt to each symbol's volatility
+    "atr_wide":      dict(sl=None,  tp=None,  arm=0.012, trail=0.025, trend=True,  atr=True),
 }
-ATR_SL_MULT = 2.0
-ATR_TP_MULT = 4.0
+ATR_SL_MULT = 3.0
+ATR_TP_MULT = 5.0
 
 
 def precompute(symbol, market):

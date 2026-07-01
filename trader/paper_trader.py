@@ -19,15 +19,17 @@ INDIAN_BALANCE  = 100000.0
 RISK_PER_TRADE  = 0.02
 MAX_OPEN_CRYPTO = 3
 MAX_OPEN_INDIAN = 5
-# Exit config from backtest/sweep.py (2026-06, "trend+tpwide" winner):
-# wider TP + trail lets winners run; with EMA20>EMA50 entry gate it scored
-# crypto -1.74% (5/5 beat b&h) and indian -1.84% (6/10) vs base -6%/-9%.
-STOP_LOSS_PCT   = 0.015
-TAKE_PROFIT_PCT = 0.045
+# Exit config from backtest/sweep.py (2026-07, "trail_loose" winner). Live
+# analysis of 81 trades showed STOP_LOSS was the #1 bleeder — stops too tight
+# shook trades out before the move. Wider stop + wider TP + looser trail:
+# crypto -1.74% -> +0.53% (win 33->47%), indian -1.84% -> -0.31% (beats b&h
+# 7/10), both after fees. Do not tighten without re-beating this in sweep.py.
+STOP_LOSS_PCT   = 0.020
+TAKE_PROFIT_PCT = 0.050
 
 # Trailing stop: arms once price is up TRAIL_ARM_PCT, exits on TRAIL_PCT pullback
-TRAIL_ARM_PCT   = 0.01
-TRAIL_PCT       = 0.02
+TRAIL_ARM_PCT   = 0.015
+TRAIL_PCT       = 0.030
 
 # Round-trip realistic costs (taker fee / brokerage+STT+slippage)
 FEE_CRYPTO_PCT  = 0.001
