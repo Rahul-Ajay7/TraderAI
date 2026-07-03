@@ -6,6 +6,7 @@ import Portfolio   from "./components/Portfolio";
 import TradeLog    from "./components/TradeLog";
 import ModelStatus from "./components/ModelStatus";
 import Accuracy    from "./components/Accuracy";
+import { WS_URL }  from "./config";
 
 const NAV = [
   { id: "prices",    label: "Markets",   icon: LayoutGrid },
@@ -25,10 +26,7 @@ export default function App() {
     let ws, timer, closed = false;
     function connect() {
       setStatus("connecting");
-      const wsUrl = window.location.hostname === "localhost"
-        ? "ws://localhost:8000/ws"
-        : "wss://traderai-backend.up.railway.app/ws";
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(WS_URL);
       ws.onopen    = () => setStatus("connected");
       ws.onclose   = () => {
         if (closed) return;

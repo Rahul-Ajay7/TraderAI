@@ -27,11 +27,59 @@ if DATABASE_URL:
         print(f"[DB] numpy adapter registration failed: {_e}", flush=True)
 
 # ── Connection helper ─────────────────────────────────────────────────────────
+# PG connections come from a small thread-safe pool. Free-tier Postgres (Neon)
+# both caps connections and has slow TLS connects — the old open/close-per-query
+# pattern would add seconds per cycle and can hit the cap. Callers keep the
+# exact same API: conn.close() just returns the connection to the pool.
+
+_pg_pool = None
+_POOL_MAX = 5   # cycle thread + exit guard + API endpoints + broadcast
+
+class _PooledConn:
+    """Proxy that returns the underlying connection to the pool on close()."""
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        try:
+            if self._conn.closed:
+                self._pool.putconn(self._conn, close=True)
+                return
+            # clear any aborted-transaction state before reuse
+            self._conn.rollback()
+            self._pool.putconn(self._conn)
+        except Exception:
+            try:
+                self._pool.putconn(self._conn, close=True)
+            except Exception:
+                pass
 
 def _get_conn():
+    global _pg_pool
     if DATABASE_URL:
         import psycopg2
-        return psycopg2.connect(DATABASE_URL), "pg"
+        from psycopg2 import pool as _pgpool
+        if _pg_pool is None:
+            _pg_pool = _pgpool.ThreadedConnectionPool(1, _POOL_MAX, DATABASE_URL)
+        try:
+            conn = _pg_pool.getconn()
+            # stale/broken connection (server restarted, idle timeout) → replace
+            if conn.closed:
+                _pg_pool.putconn(conn, close=True)
+                conn = _pg_pool.getconn()
+        except Exception:
+            # pool poisoned — rebuild once
+            try:
+                _pg_pool.closeall()
+            except Exception:
+                pass
+            _pg_pool = _pgpool.ThreadedConnectionPool(1, _POOL_MAX, DATABASE_URL)
+            conn = _pg_pool.getconn()
+        return _PooledConn(conn, _pg_pool), "pg"
     path = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "prices.db"))
     return sqlite3.connect(path), "sqlite"
 

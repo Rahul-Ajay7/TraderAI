@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { Target, Database, TrendingUp } from "lucide-react";
 import { Card, CardHeader, PageHeader, Badge, Stat } from "./ui";
-
-const API = window.location.hostname === "localhost"
-  ? "http://localhost:8000"
-  : "https://traderai-backend.up.railway.app";
+import { API_URL as API } from "../config";
 
 export default function Accuracy() {
   const [acc, setAcc]       = useState(null);
