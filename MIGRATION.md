@@ -23,12 +23,16 @@ Prints row counts at the end — expect candles ~10.8k, trades 190, predictions 
 3. Space → Settings → **Variables and secrets** → New secret:
    - `DATABASE_URL` = the Neon URL
    - (optional) `HF_TOKEN` = your HF read token (faster model downloads)
-4. Push the repo to the Space (from your PC):
+4. Push the repo to the Space (from your PC). NOTE: plain `git push hf main`
+   is REJECTED — old commits contain node_modules binaries and HF scans full
+   history. Push a history-free snapshot of the current tree instead:
 ```powershell
 cd C:\Users\RAHUL\Desktop\Files\React\TraderAI
-git remote add hf https://huggingface.co/spaces/YOUR_HF_USERNAME/traderai-backend
-git push hf main   # asks for HF username + access token (Settings → Access Tokens → write)
+git remote add hf https://YOUR_HF_USERNAME:hf_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/traderai-backend
+$snap = git commit-tree "HEAD^{tree}" -m "deploy"
+git push -f hf "${snap}:refs/heads/main"
 ```
+   Same two lines redeploy any future code change.
 5. Space builds (~15 min first time, torch is heavy). Logs tab should show
    `[DB] Using PostgreSQL`, `[KRONOS] Model ready`, `[CYCLE]` lines.
 6. Backend URL = `https://YOUR_HF_USERNAME-traderai-backend.hf.space`
