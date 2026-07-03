@@ -30,19 +30,30 @@ if db != "pg":
     sys.exit("DATABASE_URL not picked up — target must be Postgres")
 cur = conn.cursor()
 
-t0, n, batch = time.time(), 0, 0
+# Batch many INSERT statements into one execute() — each execute is a network
+# round trip, and one-statement-at-a-time over WAN would take ~25 min.
+CHUNK = 200
+t0, n, buf = time.time(), 0, []
+def _flush():
+    global n
+    if not buf:
+        return
+    cur.execute("\n".join(buf))
+    n += len(buf)
+    buf.clear()
+
 with open(DUMP, encoding="utf-8") as f:
     for line in f:
         line = line.strip()
         if not line.startswith("INSERT INTO"):
             continue
-        cur.execute(line.rstrip(";"))
-        n += 1
-        batch += 1
-        if batch >= 1000:
+        buf.append(line if line.endswith(";") else line + ";")
+        if len(buf) >= CHUNK:
+            _flush()
             conn.commit()
-            batch = 0
-            print(f"  ...{n} rows ({time.time()-t0:.0f}s)", flush=True)
+            if n % 2000 == 0:
+                print(f"  ...{n} rows ({time.time()-t0:.0f}s)", flush=True)
+_flush()
 conn.commit()
 conn.close()
 print(f"[RESTORE] done: {n} rows in {time.time()-t0:.0f}s")
